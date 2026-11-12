@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import {
   SafeAreaView,
   View,
@@ -55,12 +57,107 @@ const INITIAL_CONVERSATIONS: Conversation[] = [
 ];
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
   const [tab, setTab] = useState<"Conversas" | "Contactos" | "Definições">("Conversas");
   const [search, setSearch] = useState("");
-  const [translationEnabled, setTranslationEnabled] = useState(false);
+  const [translationEnabled, setTranslationEnabled] = useState(false);\n  const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let cancelled = false;
+    const loadPreferences = async () => {
+      setPreferenceLoading(true);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("translation_mode, preferred_language")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (!cancelled && !error && data) {
+        setTranslationEnabled(data.translation_mode === "automatic");
+      }
+      if (!cancelled) setPreferenceLoading(false);
+    };
+    void loadPreferences();
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
+  const handleAuth = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    setAuthError("");
+    setAuthNotice("");
+    if (!cleanEmail || !password) {
+      setAuthError("Preenche o email e a palavra-passe.");
+      return;
+    }
+    if (password.length < 8) {
+      setAuthError("A palavra-passe deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: { data: { display_name: displayName.trim() } },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setAuthNotice("Conta criada. Confirma o teu email através do link que enviámos para entrares.");
+        } else {
+          setAuthNotice("Conta criada com sucesso!");
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (error) throw error;
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Não foi possível concluir a operação.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const saveTranslationPreference = async (enabled: boolean) => {
+    setTranslationEnabled(enabled);
+    if (!session?.user.id) return;
+    setPreferenceLoading(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        translation_mode: enabled ? "automatic" : "manual",
+        preferred_language: "pt",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", session.user.id);
+    if (error) {
+      setAuthError("Não foi possível guardar a preferência. Verifica a ligação.");
+    }
+    setPreferenceLoading(false);
+  };
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
 
@@ -210,7 +307,7 @@ export default function App() {
                 <Text style={styles.settingTitle}>Tradução automática</Text>
                 <Text style={styles.settingDescription}>Cada utilizador poderá escolher individualmente se pretende tradução automática ou manual.</Text>
                 <Pressable
-                  onPress={() => setTranslationEnabled((value) => !value)}
+                  onPress={() => void saveTranslationPreference(!translationEnabled)}
                   style={[styles.toggle, translationEnabled && styles.toggleOn]}
                   accessibilityRole="switch"
                   accessibilityState={{ checked: translationEnabled }}
@@ -219,7 +316,13 @@ export default function App() {
                     {translationEnabled ? "Automática ativada" : "Modo manual"}
                   </Text>
                 </Pressable>
-                <Text style={styles.languageNote}>Idioma de demonstração: Português</Text>
+                <Text style={styles.languageNote}>Idioma: Português {session ? "· preferência guardada na tua conta" : "· demonstração local"}</Text>
+                {preferenceLoading && <Text style={styles.languageNote}>A guardar preferência...</Text>}
+                {session && (
+                  <Pressable onPress={() => void supabase.auth.signOut()} style={styles.logoutButton}>
+                    <Text style={styles.logoutText}>Terminar sessão</Text>
+                  </Pressable>
+                )}
               </View>
             </View>
           )}
@@ -239,6 +342,20 @@ export default function App() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F6FBF8" },
+  authScreen: { justifyContent: "center", padding: 22 },
+  authCard: { backgroundColor: "#FFFFFF", borderRadius: 24, padding: 24, borderWidth: 1, borderColor: "#E5EEE9", alignItems: "stretch" },
+  authLogo: { width: 58, height: 58, borderRadius: 29, backgroundColor: "#0B6B4B", alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 14 },
+  authLogoText: { color: "#FFFFFF", fontSize: 27, fontWeight: "800" },
+  authHeading: { color: "#18251F", fontSize: 21, fontWeight: "800", marginTop: 28, marginBottom: 16 },
+  authInput: { backgroundColor: "#F0F5F2", borderRadius: 13, paddingHorizontal: 15, paddingVertical: 14, color: "#18251F", fontSize: 14, marginBottom: 11 },
+  authError: { color: "#B42318", fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  authNotice: { color: "#0B6B4B", fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  authButton: { backgroundColor: "#0B6B4B", borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 5 },
+  authButtonDisabled: { opacity: 0.6 },
+  authButtonText: { color: "#FFFFFF", fontWeight: "800", fontSize: 15 },
+  authSwitch: { color: "#0B6B4B", fontWeight: "700", fontSize: 13, textAlign: "center", marginTop: 18 },
+  logoutButton: { alignSelf: "flex-start", paddingVertical: 12, marginTop: 8 },
+  logoutText: { color: "#B42318", fontWeight: "700", fontSize: 13 },
   header: { paddingHorizontal: 22, paddingTop: 18, paddingBottom: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   brand: { color: "#0B6B4B", fontSize: 27, fontWeight: "800" },
   subtitle: { color: "#718078", fontSize: 13, marginTop: 3 },
