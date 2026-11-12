@@ -13,6 +13,7 @@ Aplicação de mensagens para Android e iPhone, construída com Expo e React Nat
 - Indicador de mensagens não lidas e atualização da última mensagem.
 - Preferência individual de tradução automática ou modo manual, guardada no perfil Supabase quando configurado.
 - Envio de fotografias, vídeos, áudios e documentos para armazenamento privado da conversa (até 50 MB por ficheiro).
+- Recuperação de palavra-passe por email com ligação profunda para a aplicação.
 - Idioma inicial: Português.
 
 ## Executar localmente
@@ -30,8 +31,8 @@ A aplicação inclui registo/início de sessão, perfis, descoberta de contactos
 
 ## Próximas etapas
 
-1. Testar registo, início de sessão e mensagens com duas contas reais.
-2. Implementar recuperação de conta e rever fluxos de email.
+1. Testar registo, início de sessão e recuperação de palavra-passe com duas contas reais.
+2. Rever fluxos de confirmação de email e configurar o redirecionamento `barbosachat://reset-password` no Supabase.
 3. Testar o envio e a abertura de fotografias, vídeos, áudio e documentos com duas contas reais.
 4. Adicionar notificações push.
 5. Avaliar chamadas de voz/vídeo.

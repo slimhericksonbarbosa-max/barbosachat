@@ -69,8 +69,11 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryPasswordConfirm, setRecoveryPasswordConfirm] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
@@ -93,11 +96,63 @@ export default function App() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setAuthReady(true);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setAuthMode("login");
+        setAuthError("");
+        setAuthNotice("Link validado. Escolhe uma nova palavra-passe.");
+      }
     });
     return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleRecoveryUrl = async (url: string | null) => {
+      if (!url) return;
+      try {
+        const rawParams = url.includes("#")
+          ? url.split("#")[1]
+          : url.split("?")[1] || "";
+        const params = new URLSearchParams(rawParams);
+        const code = params.get("code");
+        const accessToken = params.get("access_token");
+        const refreshToken = params.get("refresh_token");
+        const type = params.get("type");
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        } else if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+        } else {
+          return;
+        }
+
+        if (type === "recovery" || url.includes("reset-password")) {
+          setRecoveryMode(true);
+          setAuthMode("login");
+          setPassword("");
+          setRecoveryPassword("");
+          setAuthError("");
+          setAuthNotice("Link validado. Escolhe uma nova palavra-passe.");
+        }
+      } catch (error) {
+        setAuthError(error instanceof Error ? error.message : "Não foi possível validar o link de recuperação.");
+      }
+    };
+
+    void Linking.getInitialURL().then(handleRecoveryUrl);
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      void handleRecoveryUrl(url);
+    });
+    return () => subscription.remove();
   }, []);
 
   useEffect(() => {
@@ -224,6 +279,57 @@ export default function App() {
     };
   }, [activeConversationId, session?.user.id]);
 
+  const requestPasswordReset = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+    setAuthError("");
+    setAuthNotice("");
+    if (!cleanEmail) {
+      setAuthError("Escreve primeiro o teu email para receberes o link de recuperação.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+        redirectTo: "barbosachat://reset-password",
+      });
+      if (error) throw error;
+      setAuthNotice("Se o endereço estiver registado, receberás um link para definir uma nova palavra-passe.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Não foi possível enviar o link de recuperação.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const updateRecoveredPassword = async () => {
+    setAuthError("");
+    setAuthNotice("");
+    if (recoveryPassword.length < 8) {
+      setAuthError("A nova palavra-passe deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    if (recoveryPassword !== recoveryPasswordConfirm) {
+      setAuthError("As palavras-passe não coincidem.");
+      return;
+    }
+    setAuthBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setRecoveryMode(false);
+      setRecoveryPassword("");
+      setRecoveryPasswordConfirm("");
+      setPassword("");
+      setAuthMode("login");
+      setAuthNotice("Palavra-passe atualizada. Já podes iniciar sessão.");
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Não foi possível atualizar a palavra-passe.");
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
   const handleAuth = async () => {
     const cleanEmail = email.trim().toLowerCase();
     setAuthError("");
@@ -242,7 +348,10 @@ export default function App() {
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
-          options: { data: { display_name: displayName.trim() } },
+          options: {
+            data: { display_name: displayName.trim() },
+            emailRedirectTo: "barbosachat://auth/callback",
+          },
         });
         if (error) throw error;
         if (!data.session) {
@@ -504,7 +613,7 @@ export default function App() {
     );
   }
 
-  if (isSupabaseConfigured && !session) {
+  if (isSupabaseConfigured && (!session || recoveryMode)) {
     return (
       <SafeAreaView style={[styles.safe, styles.authScreen]}>
         <StatusBar barStyle="dark-content" backgroundColor="#F6FBF8" />
@@ -512,26 +621,58 @@ export default function App() {
           <View style={styles.authLogo}><Text style={styles.authLogoText}>B</Text></View>
           <Text style={styles.brand}>Barbosachat</Text>
           <Text style={styles.subtitle}>Perto de quem importa.</Text>
-          <Text style={styles.authHeading}>{authMode === "login" ? "Bem-vindo de volta" : "Cria a tua conta"}</Text>
-          {authMode === "signup" && (
+          <Text style={styles.authHeading}>
+            {recoveryMode ? "Define uma nova palavra-passe" : authMode === "login" ? "Bem-vindo de volta" : "Cria a tua conta"}
+          </Text>
+          {!recoveryMode && authMode === "signup" && (
             <TextInput value={displayName} onChangeText={setDisplayName} placeholder="O teu nome"
               placeholderTextColor="#82938B" style={styles.authInput} autoCapitalize="words" />
           )}
-          <TextInput value={email} onChangeText={setEmail} placeholder="Email"
-            placeholderTextColor="#82938B" style={styles.authInput} keyboardType="email-address"
-            autoCapitalize="none" autoComplete="email" />
-          <TextInput value={password} onChangeText={setPassword}
-            placeholder="Palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
-            style={styles.authInput} secureTextEntry autoCapitalize="none" />
+          {!recoveryMode && (
+            <TextInput value={email} onChangeText={setEmail} placeholder="Email"
+              placeholderTextColor="#82938B" style={styles.authInput} keyboardType="email-address"
+              autoCapitalize="none" autoComplete="email" />
+          )}
+          {!recoveryMode && (
+            <TextInput value={password} onChangeText={setPassword}
+              placeholder="Palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
+              style={styles.authInput} secureTextEntry autoCapitalize="none" />
+          )}
+          {recoveryMode && (
+            <>
+              <TextInput value={recoveryPassword} onChangeText={setRecoveryPassword}
+                placeholder="Nova palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
+                style={styles.authInput} secureTextEntry autoCapitalize="none" />
+              <TextInput value={recoveryPasswordConfirm} onChangeText={setRecoveryPasswordConfirm}
+                placeholder="Confirmar nova palavra-passe" placeholderTextColor="#82938B"
+                style={styles.authInput} secureTextEntry autoCapitalize="none" />
+            </>
+          )}
           {!!authError && <Text style={styles.authError}>{authError}</Text>}
           {!!authNotice && <Text style={styles.authNotice}>{authNotice}</Text>}
-          <Pressable onPress={handleAuth} disabled={authBusy}
-            style={[styles.authButton, authBusy && styles.authButtonDisabled]}>
-            <Text style={styles.authButtonText}>{authBusy ? "Aguarda..." : authMode === "login" ? "Entrar" : "Criar conta"}</Text>
+          <Pressable
+            onPress={recoveryMode ? updateRecoveredPassword : handleAuth}
+            disabled={authBusy}
+            style={[styles.authButton, authBusy && styles.authButtonDisabled]}
+          >
+            <Text style={styles.authButtonText}>
+              {authBusy ? "Aguarda..." : recoveryMode ? "Guardar nova palavra-passe" : authMode === "login" ? "Entrar" : "Criar conta"}
+            </Text>
           </Pressable>
-          <Pressable onPress={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); setAuthNotice(""); }}>
-            <Text style={styles.authSwitch}>{authMode === "login" ? "Ainda não tens conta? Criar conta" : "Já tens conta? Iniciar sessão"}</Text>
-          </Pressable>
+          {!recoveryMode && authMode === "login" && (
+            <Pressable onPress={requestPasswordReset} disabled={authBusy}>
+              <Text style={styles.authSwitch}>Esqueceste-te da palavra-passe?</Text>
+            </Pressable>
+          )}
+          {recoveryMode ? (
+            <Pressable onPress={() => { setRecoveryMode(false); setAuthError(""); setAuthNotice(""); }}>
+              <Text style={styles.authSwitch}>Voltar ao início de sessão</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); setAuthNotice(""); }}>
+              <Text style={styles.authSwitch}>{authMode === "login" ? "Ainda não tens conta? Criar conta" : "Já tens conta? Iniciar sessão"}</Text>
+            </Pressable>
+          )}
         </View>
       </SafeAreaView>
     );

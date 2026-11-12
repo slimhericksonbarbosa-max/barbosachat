@@ -29,6 +29,7 @@
           "microphonePermission": false
         }
       ]
-    ]
+    ],
+    "scheme": "barbosachat"
   }
 }
