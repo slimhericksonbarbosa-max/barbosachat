@@ -86,6 +86,10 @@ export default function App() {
   const [mediaBusy, setMediaBusy] = useState(false);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
+  const [groupMode, setGroupMode] = useState(false);
+  const [groupTitle, setGroupTitle] = useState("");
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [groupBusy, setGroupBusy] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -453,6 +457,36 @@ export default function App() {
     }
   };
 
+  const createGroupChat = async () => {
+    if (!session?.user.id || selectedContactIds.length < 2) return;
+    setGroupBusy(true);
+    setChatError("");
+    try {
+      const title = groupTitle.trim() || "Grupo Barbosachat";
+      const conversationId = await createConversation(session.user.id, selectedContactIds, {
+        title,
+        isGroup: true,
+      });
+      setConversations((current) => [{
+        id: conversationId,
+        name: title,
+        message: "Grupo criado. Envia a primeira mensagem!",
+        time: "",
+        color: "#E8E8FF",
+        messages: [],
+      }, ...current.filter((item) => item.id !== conversationId)]);
+      setActiveConversationId(conversationId);
+      setTab("Conversas");
+      setGroupMode(false);
+      setGroupTitle("");
+      setSelectedContactIds([]);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível criar o grupo.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
   const openConversation = (id: string) => {
     setActiveConversationId(id);
     setConversations((current) =>
@@ -624,7 +658,43 @@ export default function App() {
 
           {tab === "Contactos" && (
             <View style={styles.content}>
-              <Text style={styles.heading}>Contactos</Text>
+              <View style={styles.groupHeader}>
+                <Text style={styles.heading}>Contactos</Text>
+                {session && (
+                  <Pressable
+                    onPress={() => {
+                      setGroupMode(!groupMode);
+                      setSelectedContactIds([]);
+                      setGroupTitle("");
+                    }}
+                    style={styles.mediaButton}
+                  >
+                    <Text style={styles.mediaButtonText}>{groupMode ? "Cancelar" : "Novo grupo"}</Text>
+                  </Pressable>
+                )}
+              </View>
+              {groupMode && (
+                <View style={styles.groupComposer}>
+                  <TextInput
+                    value={groupTitle}
+                    onChangeText={setGroupTitle}
+                    placeholder="Nome do grupo (opcional)"
+                    placeholderTextColor="#82938B"
+                    style={styles.search}
+                    maxLength={60}
+                  />
+                  <Text style={styles.languageNote}>Seleciona pelo menos duas pessoas para criar o grupo.</Text>
+                  <Pressable
+                    onPress={() => void createGroupChat()}
+                    disabled={groupBusy || selectedContactIds.length < 2}
+                    style={[styles.authButton, (groupBusy || selectedContactIds.length < 2) && styles.authButtonDisabled]}
+                  >
+                    <Text style={styles.authButtonText}>
+                      {groupBusy ? "A criar..." : `Criar grupo (${selectedContactIds.length})`}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
               {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para encontrar outros utilizadores.</Text>
@@ -635,7 +705,17 @@ export default function App() {
                   contentContainerStyle={styles.list}
                   ListEmptyComponent={<Text style={styles.empty}>Ainda não existem outros utilizadores registados.</Text>}
                   renderItem={({ item }) => (
-                    <Pressable style={styles.chatRow} onPress={() => void startConversation(item.id, item.display_name)}>
+                    <Pressable
+                      style={[
+                        styles.chatRow,
+                        groupMode && selectedContactIds.includes(item.id) && styles.groupSelectedRow,
+                      ]}
+                      onPress={() => groupMode
+                        ? setSelectedContactIds((current) => current.includes(item.id)
+                          ? current.filter((id) => id !== item.id)
+                          : [...current, item.id])
+                        : void startConversation(item.id, item.display_name)}
+                    >
                       <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
                         <Text style={styles.chatAvatarText}>{item.display_name.charAt(0).toUpperCase()}</Text>
                       </View>
@@ -643,7 +723,11 @@ export default function App() {
                         <Text style={styles.chatName}>{item.display_name}</Text>
                         <Text style={styles.message}>{item.username ? "@"+item.username : "Utilizador Barbosachat"}</Text>
                       </View>
-                      <Text style={styles.navTextActive}>Conversar</Text>
+                      <Text style={styles.navTextActive}>
+                        {groupMode
+                          ? selectedContactIds.includes(item.id) ? "Selecionado" : "Selecionar"
+                          : "Conversar"}
+                      </Text>
                     </Pressable>
                   )}
                 />
@@ -741,6 +825,9 @@ const styles = StyleSheet.create({
   myMessageText: { color: "#FFFFFF" },
   messageTime: { color: "#87958E", fontSize: 10, alignSelf: "flex-end", marginTop: 5 },
   myMessageTime: { color: "#D4EAE0" },
+  groupHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  groupComposer: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#E5EEE9" },
+  groupSelectedRow: { backgroundColor: "#EAF3EE", borderRadius: 12, paddingHorizontal: 10 },
   mediaActions: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 8, backgroundColor: "#FFFFFF" },
   mediaButton: { backgroundColor: "#EAF3EE", borderRadius: 14, paddingHorizontal: 13, paddingVertical: 8 },
   mediaButtonText: { color: "#0B6B4B", fontSize: 12, fontWeight: "700" },
