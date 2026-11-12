@@ -20,31 +20,23 @@ npm install
 npx expo start
 ```
 
+O projeto já inclui a URL e a chave pública (publishable) do Supabase Barbosachat como configuração predefinida. Opcionalmente, podes substituir estes valores através de `.env`, usando o modelo em `.env.example`.
+
 ## Estado técnico
 
-A aplicação inclui registo/início de sessão, perfis, descoberta de contactos, criação de conversas, envio e histórico de mensagens persistentes e subscrição Realtime. Estas funcionalidades dependem de um projeto Supabase configurado, do schema aplicado e das variáveis locais definidas. A integração está preparada no código, mas ainda precisa de testes de ponta a ponta com duas contas reais. Não existem ainda notificações push.
+A aplicação inclui registo/início de sessão, perfis, descoberta de contactos, criação de conversas, envio e histórico de mensagens persistentes e subscrição Realtime. O esquema da base de dados e as políticas RLS já foram aplicados no projeto Supabase. Ainda são necessários testes de ponta a ponta com duas contas reais, configuração/validação de email e testes em dispositivos. Não existem ainda notificações push.
 
 ## Próximas etapas
 
-1. Configurar e testar o projeto Supabase com duas contas reais.
-2. Implementar recuperação de conta e reforçar os testes de segurança/RLS.
+1. Testar registo, início de sessão e mensagens com duas contas reais.
+2. Implementar recuperação de conta e rever fluxos de email.
 3. Implementar envio de fotografias, vídeos, áudio e ficheiros com armazenamento seguro.
 4. Adicionar notificações push.
 5. Avaliar chamadas de voz/vídeo.
 6. Implementar bloqueios, denúncias e políticas de privacidade.
 
-As funcionalidades de rede e comunicação real devem ser implementadas e testadas antes de qualquer lançamento público.
-
+As funcionalidades de rede e comunicação real devem ser testadas antes de qualquer lançamento público.
 
 ## Configuração do Supabase
 
-Segue o guia passo a passo em [supabase/SETUP.md](supabase/SETUP.md). O ficheiro [.env.example](.env.example) mostra as variáveis públicas necessárias. Cria um ficheiro local `.env` com os teus valores reais e nunca publiques chaves privadas ou a chave `service_role`.
-
-Resumo:
-1. Criar um projeto Supabase.
-2. Executar `supabase/schema.sql` no SQL Editor.
-3. Ativar Realtime para a tabela `messages`.
-4. Configurar `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY` no ficheiro local `.env`.
-5. Executar `npm install` e `npx expo start`.
-
-A configuração do Supabase ainda depende da criação do projeto pelo proprietário. Até essa configuração ser concluída e testada, autenticação persistente, preferências guardadas e mensagens reais não devem ser consideradas operacionais.
+Segue o guia passo a passo em [supabase/SETUP.md](supabase/SETUP.md). O ficheiro [.env.example](.env.example) contém apenas valores públicos de cliente. Nunca publiques chaves privadas ou a chave `service_role`.
