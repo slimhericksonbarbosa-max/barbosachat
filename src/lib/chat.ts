@@ -148,3 +148,21 @@ export function subscribeToMessages(
     )
     .subscribe();
 }
+
+export type ContactProfile = {
+  id: string;
+  username: string | null;
+  display_name: string;
+  avatar_url: string | null;
+};
+
+/** Lists public profile fields, excluding the current user. */
+export async function listContacts(currentUserId: string): Promise<ContactProfile[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, username, display_name, avatar_url")
+    .neq("id", currentUserId)
+    .order("display_name", { ascending: true });
+  throwIfError(error);
+  return (data ?? []) as ContactProfile[];
+}
