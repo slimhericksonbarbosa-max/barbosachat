@@ -10,6 +10,9 @@ export type StoredMessage = {
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  media_path: string | null;
+  media_name: string | null;
+  media_content_type: string | null;
 };
 
 export type ConversationSummary = {
@@ -45,7 +48,7 @@ export async function listMyConversations(userId: string): Promise<ConversationS
 
   const latestMessages = await supabase
     .from("messages")
-    .select("id, conversation_id, sender_id, body, message_type, created_at, edited_at, deleted_at")
+    .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
     .in("conversation_id", ids)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
@@ -87,7 +90,7 @@ export async function listMyConversations(userId: string): Promise<ConversationS
 export async function listMessages(conversationId: string): Promise<StoredMessage[]> {
   const { data, error } = await supabase
     .from("messages")
-    .select("id, conversation_id, sender_id, body, message_type, created_at, edited_at, deleted_at")
+    .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
     .eq("conversation_id", conversationId)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
@@ -113,7 +116,30 @@ export async function sendTextMessage(
       body: cleanBody,
       message_type: "text",
     })
-    .select("id, conversation_id, sender_id, body, message_type, created_at, edited_at, deleted_at")
+    .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
+    .single();
+  throwIfError(error);
+  return data as StoredMessage;
+}
+
+/** Persists a message that points to an object in the private chat-media bucket. */
+export async function sendMediaMessage(
+  conversationId: string,
+  senderId: string,
+  media: { path: string; name: string; contentType: string; kind: "image" | "video" | "audio" | "file" },
+): Promise<StoredMessage> {
+  const { data, error } = await supabase
+    .from("messages")
+    .insert({
+      conversation_id: conversationId,
+      sender_id: senderId,
+      body: media.name,
+      message_type: media.kind,
+      media_path: media.path,
+      media_name: media.name,
+      media_content_type: media.contentType,
+    })
+    .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
     .single();
   throwIfError(error);
   return data as StoredMessage;

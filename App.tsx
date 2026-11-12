@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
-import { createConversation, listContacts, listMyConversations, listMessages, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
+import { createConversation, listContacts, listMyConversations, listMessages, sendMediaMessage, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
+import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import {
   SafeAreaView,
   View,
@@ -13,6 +17,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  Linking,
 } from "react-native";
 
 type ChatMessage = {
@@ -20,6 +25,9 @@ type ChatMessage = {
   text: string;
   time: string;
   mine: boolean;
+  mediaPath?: string;
+  mediaName?: string;
+  mediaKind?: "image" | "video" | "audio" | "file";
 };
 
 type Conversation = {
@@ -75,8 +83,13 @@ export default function App() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
+  const [groupMode, setGroupMode] = useState(false);
+  const [groupTitle, setGroupTitle] = useState("");
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [groupBusy, setGroupBusy] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -165,6 +178,9 @@ export default function App() {
         text: stored.body,
         time: new Date(stored.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         mine: false,
+        mediaPath: stored.media_path || undefined,
+        mediaName: stored.media_name || undefined,
+        mediaKind: stored.message_type === "text" ? undefined : stored.message_type,
       };
       setConversations((current) => current.map((conversation) =>
         conversation.id === activeConversationId && !conversation.messages.some((item) => item.id === incoming.id)
@@ -185,6 +201,9 @@ export default function App() {
                 text: row.body,
                 time: new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                 mine: row.sender_id === session.user.id,
+                mediaPath: row.media_path || undefined,
+                mediaName: row.media_name || undefined,
+                mediaKind: row.message_type === "text" ? undefined : row.message_type,
               }));
               const historyIds = new Set(history.map((message) => message.id));
               const realtimeArrivals = conversation.messages.filter((message) => !historyIds.has(message.id));
@@ -263,6 +282,112 @@ export default function App() {
     setPreferenceLoading(false);
   };
 
+  const sendPickedFile = async (
+    uri: string,
+    fileName: string,
+    contentType: string,
+    kind: "image" | "video" | "audio" | "file",
+  ) => {
+    if (!session?.user.id || !activeConversationId) return;
+    setMediaBusy(true);
+    setChatError("");
+    let uploadedPath: string | undefined;
+    try {
+      const file = new File(uri);
+      if (!file.exists) throw new Error("Não foi possível ler o ficheiro selecionado.");
+      if (file.size > 50 * 1024 * 1024) throw new Error("O ficheiro excede o limite de 50 MB.");
+      const bytes = await file.bytes();
+      const uploaded = await uploadChatMedia({
+        conversationId: activeConversationId,
+        userId: session.user.id,
+        fileData: bytes,
+        fileName,
+        contentType: contentType || file.type || "application/octet-stream",
+        kind,
+      });
+      uploadedPath = uploaded.path;
+      const stored = await sendMediaMessage(activeConversationId, session.user.id, {
+        path: uploaded.path,
+        name: uploaded.originalName,
+        contentType: uploaded.contentType,
+        kind: uploaded.kind,
+      });
+      const message: ChatMessage = {
+        id: stored.id,
+        text: stored.body,
+        time: new Date(stored.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        mine: true,
+        mediaPath: stored.media_path || undefined,
+        mediaName: stored.media_name || undefined,
+        mediaKind: stored.message_type === "text" ? undefined : stored.message_type,
+      };
+      const preview = kind === "image" ? "📷 Fotografia" : kind === "video" ? "🎬 Vídeo" : kind === "audio" ? "🎵 Áudio" : "📎 Ficheiro";
+      setConversations((current) => current.map((conversation) =>
+        conversation.id === activeConversationId
+          ? { ...conversation, messages: [...conversation.messages, message], message: preview, time: "Agora" }
+          : conversation
+      ));
+    } catch (error) {
+      if (uploadedPath) await deleteChatMedia(uploadedPath).catch(() => undefined);
+      setChatError(error instanceof Error ? error.message : "Não foi possível enviar o ficheiro.");
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const pickPhotoOrVideo = async () => {
+    if (!session?.user.id || !activeConversationId) return;
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setChatError("É necessária autorização para aceder às fotografias e vídeos.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images", "videos"],
+        allowsEditing: false,
+        quality: 0.8,
+        videoMaxDuration: 120,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const kind = asset.type === "video" ? "video" : "image";
+      const fallbackName = kind === "video" ? "video.mp4" : "fotografia.jpg";
+      const contentType = asset.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg");
+      await sendPickedFile(asset.uri, asset.fileName || fallbackName, contentType, kind);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível abrir a galeria.");
+    }
+  };
+
+  const pickDocumentOrAudio = async () => {
+    if (!session?.user.id || !activeConversationId) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const contentType = asset.mimeType || "application/octet-stream";
+      const kind = contentType.startsWith("audio/") ? "audio" : "file";
+      await sendPickedFile(asset.uri, asset.name, contentType, kind);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível selecionar o ficheiro.");
+    }
+  };
+
+  const openMedia = async (item: ChatMessage) => {
+    if (!item.mediaPath) return;
+    try {
+      const url = await createChatMediaUrl(item.mediaPath);
+      await Linking.openURL(url);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível abrir o ficheiro.");
+    }
+  };
+
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
 
   const filteredConversations = useMemo(
@@ -329,6 +454,36 @@ export default function App() {
       setTab("Conversas");
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Não foi possível iniciar a conversa.");
+    }
+  };
+
+  const createGroupChat = async () => {
+    if (!session?.user.id || selectedContactIds.length < 2) return;
+    setGroupBusy(true);
+    setChatError("");
+    try {
+      const title = groupTitle.trim() || "Grupo Barbosachat";
+      const conversationId = await createConversation(session.user.id, selectedContactIds, {
+        title,
+        isGroup: true,
+      });
+      setConversations((current) => [{
+        id: conversationId,
+        name: title,
+        message: "Grupo criado. Envia a primeira mensagem!",
+        time: "",
+        color: "#E8E8FF",
+        messages: [],
+      }, ...current.filter((item) => item.id !== conversationId)]);
+      setActiveConversationId(conversationId);
+      setTab("Conversas");
+      setGroupMode(false);
+      setGroupTitle("");
+      setSelectedContactIds([]);
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível criar o grupo.");
+    } finally {
+      setGroupBusy(false);
     }
   };
 
@@ -413,12 +568,32 @@ export default function App() {
             ListEmptyComponent={<Text style={styles.empty}>Ainda não existem mensagens. Envia a primeira!</Text>}
             renderItem={({ item }) => (
               <View style={[styles.messageBubble, item.mine ? styles.myBubble : styles.theirBubble]}>
-                <Text style={[styles.messageText, item.mine && styles.myMessageText]}>{item.text}</Text>
+                {item.mediaPath ? (
+                  <Pressable onPress={() => void openMedia(item)}>
+                    <Text style={[styles.messageText, item.mine && styles.myMessageText]}>
+                      {item.mediaKind === "image" ? "📷 Fotografia" : item.mediaKind === "video" ? "🎬 Vídeo" : item.mediaKind === "audio" ? "🎵 Áudio" : "📎 Ficheiro"}
+                      {"\n"}{item.mediaName || item.text}
+                      {"\n"}Toque para abrir
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={[styles.messageText, item.mine && styles.myMessageText]}>{item.text}</Text>
+                )}
                 <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
               </View>
             )}
           />
 
+          {session && (
+            <View style={styles.mediaActions}>
+              <Pressable onPress={() => void pickPhotoOrVideo()} disabled={mediaBusy} style={styles.mediaButton}>
+                <Text style={styles.mediaButtonText}>{mediaBusy ? "A enviar..." : "Foto/vídeo"}</Text>
+              </Pressable>
+              <Pressable onPress={() => void pickDocumentOrAudio()} disabled={mediaBusy} style={styles.mediaButton}>
+                <Text style={styles.mediaButtonText}>Ficheiro/áudio</Text>
+              </Pressable>
+            </View>
+          )}
           <View style={styles.composer}>
             <TextInput
               value={draft}
@@ -483,7 +658,43 @@ export default function App() {
 
           {tab === "Contactos" && (
             <View style={styles.content}>
-              <Text style={styles.heading}>Contactos</Text>
+              <View style={styles.groupHeader}>
+                <Text style={styles.heading}>Contactos</Text>
+                {session && (
+                  <Pressable
+                    onPress={() => {
+                      setGroupMode(!groupMode);
+                      setSelectedContactIds([]);
+                      setGroupTitle("");
+                    }}
+                    style={styles.mediaButton}
+                  >
+                    <Text style={styles.mediaButtonText}>{groupMode ? "Cancelar" : "Novo grupo"}</Text>
+                  </Pressable>
+                )}
+              </View>
+              {groupMode && (
+                <View style={styles.groupComposer}>
+                  <TextInput
+                    value={groupTitle}
+                    onChangeText={setGroupTitle}
+                    placeholder="Nome do grupo (opcional)"
+                    placeholderTextColor="#82938B"
+                    style={styles.search}
+                    maxLength={60}
+                  />
+                  <Text style={styles.languageNote}>Seleciona pelo menos duas pessoas para criar o grupo.</Text>
+                  <Pressable
+                    onPress={() => void createGroupChat()}
+                    disabled={groupBusy || selectedContactIds.length < 2}
+                    style={[styles.authButton, (groupBusy || selectedContactIds.length < 2) && styles.authButtonDisabled]}
+                  >
+                    <Text style={styles.authButtonText}>
+                      {groupBusy ? "A criar..." : `Criar grupo (${selectedContactIds.length})`}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
               {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para encontrar outros utilizadores.</Text>
@@ -494,7 +705,17 @@ export default function App() {
                   contentContainerStyle={styles.list}
                   ListEmptyComponent={<Text style={styles.empty}>Ainda não existem outros utilizadores registados.</Text>}
                   renderItem={({ item }) => (
-                    <Pressable style={styles.chatRow} onPress={() => void startConversation(item.id, item.display_name)}>
+                    <Pressable
+                      style={[
+                        styles.chatRow,
+                        groupMode && selectedContactIds.includes(item.id) && styles.groupSelectedRow,
+                      ]}
+                      onPress={() => groupMode
+                        ? setSelectedContactIds((current) => current.includes(item.id)
+                          ? current.filter((id) => id !== item.id)
+                          : [...current, item.id])
+                        : void startConversation(item.id, item.display_name)}
+                    >
                       <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
                         <Text style={styles.chatAvatarText}>{item.display_name.charAt(0).toUpperCase()}</Text>
                       </View>
@@ -502,7 +723,11 @@ export default function App() {
                         <Text style={styles.chatName}>{item.display_name}</Text>
                         <Text style={styles.message}>{item.username ? "@"+item.username : "Utilizador Barbosachat"}</Text>
                       </View>
-                      <Text style={styles.navTextActive}>Conversar</Text>
+                      <Text style={styles.navTextActive}>
+                        {groupMode
+                          ? selectedContactIds.includes(item.id) ? "Selecionado" : "Selecionar"
+                          : "Conversar"}
+                      </Text>
                     </Pressable>
                   )}
                 />
@@ -600,6 +825,12 @@ const styles = StyleSheet.create({
   myMessageText: { color: "#FFFFFF" },
   messageTime: { color: "#87958E", fontSize: 10, alignSelf: "flex-end", marginTop: 5 },
   myMessageTime: { color: "#D4EAE0" },
+  groupHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  groupComposer: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#E5EEE9" },
+  groupSelectedRow: { backgroundColor: "#EAF3EE", borderRadius: 12, paddingHorizontal: 10 },
+  mediaActions: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 8, backgroundColor: "#FFFFFF" },
+  mediaButton: { backgroundColor: "#EAF3EE", borderRadius: 14, paddingHorizontal: 13, paddingVertical: 8 },
+  mediaButtonText: { color: "#0B6B4B", fontSize: 12, fontWeight: "700" },
   composer: { flexDirection: "row", alignItems: "flex-end", padding: 12, backgroundColor: "#FFFFFF", borderTopWidth: 1, borderTopColor: "#E5EEE9", gap: 8 },
   composerInput: { flex: 1, maxHeight: 100, minHeight: 42, backgroundColor: "#F0F5F2", borderRadius: 18, paddingHorizontal: 15, paddingVertical: 10, color: "#18251F", fontSize: 14 },
   sendButton: { backgroundColor: "#0B6B4B", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12, justifyContent: "center" },

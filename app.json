@@ -19,6 +19,16 @@
       "adaptiveIcon": {
         "backgroundColor": "#0B6B4B"
       }
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Barbosachat precisa de acesso às fotografias para as partilhares nas tuas conversas.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }
