@@ -8,7 +8,7 @@ Aplicação de mensagens para Android e iPhone, construída com Expo e React Nat
 - Separadores de Conversas, Contactos e Definições.
 - Pesquisa local de conversas.
 - Ecrã individual de conversa com histórico demonstrativo.
-- Envio de mensagens locais na demonstração.
+- Envio de mensagens persistentes e sincronização em tempo real quando o Supabase está configurado.
 - Indicador de mensagens não lidas e atualização da última mensagem.
 - Preferência demonstrativa de tradução automática ou modo manual.
 - Idioma de demonstração: Português.
@@ -22,7 +22,7 @@ npx expo start
 
 ## Estado técnico
 
-A interface inclui agora o fluxo de registo/início de sessão e a preparação do cliente Supabase. A autenticação e as preferências individuais só ficam operacionais depois de criares o projeto Supabase, executares `supabase/schema.sql` e configurares as variáveis locais. O envio de mensagens continua demonstrativo e local: ainda não foi ligado à base de dados nem à sincronização em tempo real. Não existem ainda notificações push.
+A aplicação inclui registo/início de sessão, perfis, descoberta de contactos, criação de conversas, envio e histórico de mensagens persistentes e subscrição Realtime. Estas funcionalidades dependem de um projeto Supabase configurado, do schema aplicado e das variáveis locais definidas. A integração está preparada no código, mas ainda precisa de testes de ponta a ponta com duas contas reais. Não existem ainda notificações push.
 
 ## Próximas etapas
 
