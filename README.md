@@ -7,11 +7,11 @@ Aplicação de mensagens para Android e iPhone, construída com Expo e React Nat
 - Interface inicial em português, com identidade visual verde.
 - Separadores de Conversas, Contactos e Definições.
 - Pesquisa local de conversas.
-- Ecrã individual de conversa com histórico demonstrativo.
+- Ecrã individual de conversa com histórico local de demonstração ou histórico persistente via Supabase.
 - Envio de mensagens persistentes e sincronização em tempo real quando o Supabase está configurado.
 - Indicador de mensagens não lidas e atualização da última mensagem.
-- Preferência demonstrativa de tradução automática ou modo manual.
-- Idioma de demonstração: Português.
+- Preferência individual de tradução automática ou modo manual, guardada no perfil Supabase quando configurado.
+- Idioma inicial: Português.
 
 ## Executar localmente
 
@@ -26,12 +26,12 @@ A aplicação inclui registo/início de sessão, perfis, descoberta de contactos
 
 ## Próximas etapas
 
-1. Definir autenticação, perfis e recuperação de conta.
-2. Ligar uma base de dados e mensagens em tempo real.
-3. Persistir as preferências individuais de idioma e tradução.
-4. Implementar envio de fotografias, vídeos e áudio.
-5. Adicionar notificações e chamadas de voz/vídeo.
-6. Implementar privacidade, segurança, bloqueios e denúncias.
+1. Configurar e testar o projeto Supabase com duas contas reais.
+2. Implementar recuperação de conta e reforçar os testes de segurança/RLS.
+3. Implementar envio de fotografias, vídeos, áudio e ficheiros com armazenamento seguro.
+4. Adicionar notificações push.
+5. Avaliar chamadas de voz/vídeo.
+6. Implementar bloqueios, denúncias e políticas de privacidade.
 
 As funcionalidades de rede e comunicação real devem ser implementadas e testadas antes de qualquer lançamento público.
 
