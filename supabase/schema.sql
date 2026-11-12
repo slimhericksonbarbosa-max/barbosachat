@@ -116,8 +116,7 @@ drop policy if exists "Conversation creator can add members" on public.conversat
 create policy "Conversation creator can add members"
   on public.conversation_members for insert to authenticated
   with check (
-    user_id = (select auth.uid())
-    or exists (
+    exists (
       select 1 from public.conversations c
       where c.id = conversation_id and c.created_by = (select auth.uid())
     )
@@ -138,6 +137,9 @@ drop policy if exists "Senders can edit own messages" on public.messages;
 create policy "Senders can edit own messages"
   on public.messages for update to authenticated
   using (sender_id = (select auth.uid()))
-  with check (sender_id = (select auth.uid()));
+  with check (
+    sender_id = (select auth.uid())
+    and public.is_conversation_member(conversation_id)
+  );
 
 -- Ativar Realtime para mensagens no painel Supabase, se ainda não estiver ativo.
