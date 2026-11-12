@@ -98,7 +98,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $function$
 declare
   caller_id uuid := (select auth.uid());
   new_conversation_id uuid;
@@ -126,7 +126,7 @@ begin
 
   return new_conversation_id;
 end;
-$;
+$function$;
 
 revoke all on function public.create_conversation(uuid[], text, boolean) from public;
 grant execute on function public.create_conversation(uuid[], text, boolean) to authenticated;
