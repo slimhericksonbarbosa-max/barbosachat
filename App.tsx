@@ -179,12 +179,17 @@ export default function App() {
         const rows = await listMessages(activeConversationId);
         if (cancelled) return;
         setConversations((current) => current.map((conversation) => conversation.id === activeConversationId
-          ? { ...conversation, messages: rows.map((row) => ({
-              id: row.id,
-              text: row.body,
-              time: new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              mine: row.sender_id === session.user.id,
-            })) }
+          ? (() => {
+              const history = rows.map((row) => ({
+                id: row.id,
+                text: row.body,
+                time: new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                mine: row.sender_id === session.user.id,
+              }));
+              const historyIds = new Set(history.map((message) => message.id));
+              const realtimeArrivals = conversation.messages.filter((message) => !historyIds.has(message.id));
+              return { ...conversation, messages: [...history, ...realtimeArrivals] };
+            })()
           : conversation
         ));
       } catch (error) {
