@@ -604,7 +604,7 @@ export default function App() {
     );
   }
 
-  if (isSupabaseConfigured && !session) {
+  if (isSupabaseConfigured && (!session || recoveryMode)) {
     return (
       <SafeAreaView style={[styles.safe, styles.authScreen]}>
         <StatusBar barStyle="dark-content" backgroundColor="#F6FBF8" />
