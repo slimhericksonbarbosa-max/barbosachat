@@ -68,7 +68,8 @@ export default function App() {
   const [authBusy, setAuthBusy] = useState(false);
   const [tab, setTab] = useState<"Conversas" | "Contactos" | "Definições">("Conversas");
   const [search, setSearch] = useState("");
-  const [translationEnabled, setTranslationEnabled] = useState(false);\n  const [preferenceLoading, setPreferenceLoading] = useState(false);
+  const [translationEnabled, setTranslationEnabled] = useState(false);
+  const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -197,6 +198,49 @@ export default function App() {
       current.map((item) => item.id === id ? { ...item, unread: 0 } : item)
     );
   };
+
+  if (isSupabaseConfigured && !authReady) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.authScreen]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F6FBF8" />
+        <Text style={styles.brand}>Barbosachat</Text>
+        <Text style={styles.empty}>A verificar a tua sessão...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (isSupabaseConfigured && !session) {
+    return (
+      <SafeAreaView style={[styles.safe, styles.authScreen]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F6FBF8" />
+        <View style={styles.authCard}>
+          <View style={styles.authLogo}><Text style={styles.authLogoText}>B</Text></View>
+          <Text style={styles.brand}>Barbosachat</Text>
+          <Text style={styles.subtitle}>Perto de quem importa.</Text>
+          <Text style={styles.authHeading}>{authMode === "login" ? "Bem-vindo de volta" : "Cria a tua conta"}</Text>
+          {authMode === "signup" && (
+            <TextInput value={displayName} onChangeText={setDisplayName} placeholder="O teu nome"
+              placeholderTextColor="#82938B" style={styles.authInput} autoCapitalize="words" />
+          )}
+          <TextInput value={email} onChangeText={setEmail} placeholder="Email"
+            placeholderTextColor="#82938B" style={styles.authInput} keyboardType="email-address"
+            autoCapitalize="none" autoComplete="email" />
+          <TextInput value={password} onChangeText={setPassword}
+            placeholder="Palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
+            style={styles.authInput} secureTextEntry autoCapitalize="none" />
+          {!!authError && <Text style={styles.authError}>{authError}</Text>}
+          {!!authNotice && <Text style={styles.authNotice}>{authNotice}</Text>}
+          <Pressable onPress={handleAuth} disabled={authBusy}
+            style={[styles.authButton, authBusy && styles.authButtonDisabled]}>
+            <Text style={styles.authButtonText}>{authBusy ? "Aguarda..." : authMode === "login" ? "Entrar" : "Criar conta"}</Text>
+          </Pressable>
+          <Pressable onPress={() => { setAuthMode(authMode === "login" ? "signup" : "login"); setAuthError(""); setAuthNotice(""); }}>
+            <Text style={styles.authSwitch}>{authMode === "login" ? "Ainda não tens conta? Criar conta" : "Já tens conta? Iniciar sessão"}</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
