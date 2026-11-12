@@ -47,11 +47,11 @@ O backend já tem a tabela privada `push_tokens` e a Edge Function `send-chat-no
 
 Para ativar a entrega real:
 
-1. Criar ou entrar numa conta Expo e associar o projeto Barbosachat ao EAS.
-2. Executar `eas init` na raiz do projeto e guardar o `projectId` gerado em `expo.extra.eas.projectId` no `app.json`.
-3. Configurar as credenciais de notificações para Android (FCM V1) e iOS (APNs) no EAS.
-4. Criar uma development build ou build de produção e instalar em dispositivos físicos. O Expo Go não suporta notificações push remotas em Android a partir do SDK 53.
-5. Abrir a aplicação, iniciar sessão e ativar as notificações em Definições.
+1. Criar ou entrar numa conta Expo.
+2. Na raiz do projeto, executar `npx eas-cli@latest login` e depois `npx eas-cli@latest init`. O EAS associa o projeto e grava `expo.extra.eas.projectId` no `app.json`.
+3. Configurar as credenciais de notificações para Android (FCM V1) e iOS (APNs) no EAS quando forem solicitadas.
+4. Criar uma development build com `npx eas-cli@latest build --profile development --platform all` e instalar nos dispositivos físicos. O perfil de desenvolvimento já está preparado em `eas.json`.
+5. Abrir a aplicação, iniciar sessão e ativar as notificações em Definições. O Expo Go não suporta notificações push remotas em Android a partir do SDK 53.
 
 O envio de notificações usa o Expo Push Service. Os tokens são privados e cada utilizador só pode gerir os seus próprios tokens.
 
