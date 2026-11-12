@@ -28,7 +28,9 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-notifications",
+      "expo-dev-client"
     ],
     "scheme": "barbosachat"
   }

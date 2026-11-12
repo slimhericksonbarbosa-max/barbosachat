@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { notifyChatRecipients } from "./notifications";
 
 export type StoredMessage = {
   id: string;
@@ -119,6 +120,10 @@ export async function sendTextMessage(
     .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
     .single();
   throwIfError(error);
+  if (!data) throw new Error("O servidor não devolveu a mensagem guardada.");
+  void notifyChatRecipients(conversationId, data.id).catch((notificationError) =>
+    console.warn("Barbosachat push notification failed:", notificationError)
+  );
   return data as StoredMessage;
 }
 
@@ -142,6 +147,10 @@ export async function sendMediaMessage(
     .select("id, conversation_id, sender_id, body, message_type, media_path, media_name, media_content_type, created_at, edited_at, deleted_at")
     .single();
   throwIfError(error);
+  if (!data) throw new Error("O servidor não devolveu a mensagem guardada.");
+  void notifyChatRecipients(conversationId, data.id).catch((notificationError) =>
+    console.warn("Barbosachat push notification failed:", notificationError)
+  );
   return data as StoredMessage;
 }
 

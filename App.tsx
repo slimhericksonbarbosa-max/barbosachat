@@ -6,6 +6,11 @@ import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, sendMediaMessage, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
+import * as Notifications from "expo-notifications";
+import {
+  registerCurrentDeviceForPush,
+  unregisterCurrentDeviceFromPush,
+} from "./src/lib/notifications";
 import {
   SafeAreaView,
   View,
@@ -19,6 +24,15 @@ import {
   Platform,
   Linking,
 } from "react-native";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 type ChatMessage = {
   id: string;
@@ -93,6 +107,47 @@ export default function App() {
   const [groupTitle, setGroupTitle] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [groupBusy, setGroupBusy] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
+  const [notificationsNotice, setNotificationsNotice] = useState("");
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setNotificationsEnabled(false);
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from("push_tokens")
+      .select("expo_push_token")
+      .eq("user_id", session.user.id)
+      .then(({ data, error }) => {
+        if (!cancelled && !error) setNotificationsEnabled((data ?? []).length > 0);
+      });
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    const openConversationFromNotification = (conversationId: unknown) => {
+      if (typeof conversationId !== "string") return;
+      setActiveConversationId(conversationId);
+      setTab("Conversas");
+    };
+
+    const lastResponse = Notifications.getLastNotificationResponse();
+    if (lastResponse) {
+      openConversationFromNotification(
+        lastResponse.notification.request.content.data?.conversationId
+      );
+    }
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      openConversationFromNotification(
+        response.notification.request.content.data?.conversationId
+      );
+    });
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -371,6 +426,47 @@ export default function App() {
     } finally {
       setAuthBusy(false);
     }
+  };
+
+  const enablePushNotifications = async () => {
+    if (!session?.user.id) return;
+    setNotificationsBusy(true);
+    setNotificationsNotice("");
+    try {
+      await registerCurrentDeviceForPush(session.user.id);
+      setNotificationsEnabled(true);
+      setNotificationsNotice("Notificações ativadas neste dispositivo.");
+    } catch (error) {
+      setNotificationsNotice(error instanceof Error ? error.message : "Não foi possível ativar as notificações.");
+    } finally {
+      setNotificationsBusy(false);
+    }
+  };
+
+  const disablePushNotifications = async () => {
+    if (!session?.user.id) return;
+    setNotificationsBusy(true);
+    setNotificationsNotice("");
+    try {
+      await unregisterCurrentDeviceFromPush(session.user.id);
+      setNotificationsEnabled(false);
+      setNotificationsNotice("Notificações desativadas neste dispositivo.");
+    } catch (error) {
+      setNotificationsNotice(error instanceof Error ? error.message : "Não foi possível desativar as notificações.");
+    } finally {
+      setNotificationsBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (session?.user.id) {
+      try {
+        await unregisterCurrentDeviceFromPush(session.user.id);
+      } catch (error) {
+        console.warn("Could not unregister this device's push token:", error);
+      }
+    }
+    await supabase.auth.signOut();
   };
 
   const saveTranslationPreference = async (enabled: boolean) => {
@@ -894,12 +990,29 @@ export default function App() {
                 </Pressable>
                 <Text style={styles.languageNote}>Idioma: Português {session ? "· preferência guardada na tua conta" : "· demonstração local"}</Text>
                 {preferenceLoading && <Text style={styles.languageNote}>A guardar preferência...</Text>}
-                {session && (
-                  <Pressable onPress={() => void supabase.auth.signOut()} style={styles.logoutButton}>
+              </View>
+              {session && (
+                <View style={styles.settingCard}>
+                  <Text style={styles.settingTitle}>Notificações</Text>
+                  <Text style={styles.settingDescription}>
+                    Recebe avisos quando alguém te envia uma mensagem, mesmo quando não estás a usar o Barbosachat.
+                  </Text>
+                  <Pressable
+                    onPress={() => void (notificationsEnabled ? disablePushNotifications() : enablePushNotifications())}
+                    disabled={notificationsBusy}
+                    style={[styles.toggle, notificationsEnabled && styles.toggleOn]}
+                  >
+                    <Text style={[styles.toggleText, notificationsEnabled && styles.toggleTextOn]}>
+                      {notificationsBusy ? "A atualizar..." : notificationsEnabled ? "Notificações ativadas" : "Ativar notificações"}
+                    </Text>
+                  </Pressable>
+                  {!!notificationsNotice && <Text style={styles.languageNote}>{notificationsNotice}</Text>}
+                  <Text style={styles.languageNote}>As notificações push exigem uma versão de desenvolvimento/produção e a configuração EAS do projeto.</Text>
+                  <Pressable onPress={() => void handleSignOut()} style={styles.logoutButton}>
                     <Text style={styles.logoutText}>Terminar sessão</Text>
                   </Pressable>
-                )}
-              </View>
+                </View>
+              )}
             </View>
           )}
 
