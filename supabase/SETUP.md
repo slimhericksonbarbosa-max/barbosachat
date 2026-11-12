@@ -6,17 +6,18 @@ O projeto Supabase Barbosachat já está criado e a estrutura de dados, as regra
 
 - Projeto Supabase: `Barbosachat`
 - Região: `eu-central-1`
-- Tabelas: `profiles`, `conversations`, `conversation_members`, `messages`
-- Row Level Security: ativado nas quatro tabelas
+- Tabelas: `profiles`, `conversations`, `conversation_members`, `messages`, `push_tokens`
+- Row Level Security: ativado nas cinco tabelas da aplicação
 - Realtime: `messages` e `conversation_members` incluídas na publicação
 - Funções privilegiadas auxiliares: guardadas no schema privado
 - Acesso `anon` às tabelas da aplicação: revogado
 - Armazenamento: bucket privado `chat-media`, limite de 50 MB por ficheiro
 - Políticas de Storage: upload por membros autenticados, leitura por membros da conversa e eliminação pelo proprietário do ficheiro
-- Migrações aplicadas e versionadas em `supabase/migrations/` (sete no total)
+- Migrações aplicadas e versionadas em `supabase/migrations/` (oito no total)
 - Privilégios por defeito reforçados para objetos criados pelo papel `postgres` no schema `public`
 - Interface de envio: fotografia/vídeo pela galeria e áudio/documentos pelo seletor de ficheiros
 - Mensagens multimédia guardam metadados e o caminho privado no histórico
+- Notificações push: tabela privada de tokens e Edge Function `send-chat-notification` ativa com validação JWT
 
 ## Executar a aplicação
 
@@ -40,6 +41,20 @@ A aplicação já inclui confirmação de email e recuperação de palavra-passe
 
 Sem estas autorizações, o Supabase pode rejeitar o envio do email ou redirecioná-lo incorretamente.
 
+## Notificações push
+
+O backend já tem a tabela privada `push_tokens` e a Edge Function `send-chat-notification` ativa. A aplicação permite ao utilizador ativar notificações nas Definições e regista o token Expo do dispositivo. A função só envia notificações depois de validar a sessão, a autoria da mensagem e os membros da conversa.
+
+Para ativar a entrega real:
+
+1. Criar ou entrar numa conta Expo e associar o projeto Barbosachat ao EAS.
+2. Executar `eas init` na raiz do projeto e guardar o `projectId` gerado em `expo.extra.eas.projectId` no `app.json`.
+3. Configurar as credenciais de notificações para Android (FCM V1) e iOS (APNs) no EAS.
+4. Criar uma development build ou build de produção e instalar em dispositivos físicos. O Expo Go não suporta notificações push remotas em Android a partir do SDK 53.
+5. Abrir a aplicação, iniciar sessão e ativar as notificações em Definições.
+
+O envio de notificações usa o Expo Push Service. Os tokens são privados e cada utilizador só pode gerir os seus próprios tokens.
+
 ## Testes necessários
 
 Antes do lançamento, testar com duas contas reais e dois dispositivos:
@@ -55,10 +70,11 @@ Antes do lançamento, testar com duas contas reais e dois dispositivos:
 9. Confirmar que cada conta só consegue consultar conversas de que é membro.
 10. Confirmar que apenas membros da conversa conseguem enviar e consultar os respetivos ficheiros.
 11. Enviar uma fotografia, um vídeo, um áudio e um documento, e abrir cada item no segundo dispositivo.
-12. Ao criar novas tabelas, ativar RLS e conceder apenas os privilégios necessários.
+12. Ativar notificações num dispositivo e confirmar que uma mensagem enviada por outra conta gera um aviso.
+13. Ao criar novas tabelas, ativar RLS e conceder apenas os privilégios necessários.
 
 ## Funcionalidades ainda por concluir
 
-A interface de envio e abertura de fotografias, vídeos, áudios e documentos está implementada, mas ainda precisa de testes reais em dispositivos. Também faltam recuperação de conta, notificações push, chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
+A interface de envio e abertura de fotografias, vídeos, áudios e documentos está implementada, mas ainda precisa de testes reais em dispositivos. A recuperação de conta está implementada, mas os redirecionamentos Supabase ainda precisam de ser autorizados. As notificações push estão preparadas no código e no backend, mas exigem configuração EAS e credenciais APNs/FCM. Ainda faltam chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
 
 Nunca partilhes palavras-passe, tokens privados ou a chave `service_role` no chat ou no repositório.
