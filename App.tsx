@@ -8,7 +8,16 @@ import {
   Pressable,
   StyleSheet,
   StatusBar,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+
+type ChatMessage = {
+  id: string;
+  text: string;
+  time: string;
+  mine: boolean;
+};
 
 type Conversation = {
   id: string;
@@ -17,105 +26,213 @@ type Conversation = {
   time: string;
   unread?: number;
   color: string;
+  messages: ChatMessage[];
 };
 
 const INITIAL_CONVERSATIONS: Conversation[] = [
-  { id: "1", name: "Bem-vindo ao Barbosachat", message: "O teu espaço para conversar começa aqui.", time: "Agora", unread: 1, color: "#D9F3E8" },
-  { id: "2", name: "Equipa Barbosachat", message: "Estamos a preparar novidades!", time: "Ontem", color: "#E8E8FF" },
+  {
+    id: "1",
+    name: "Bem-vindo ao Barbosachat",
+    message: "O teu espaço para conversar começa aqui.",
+    time: "Agora",
+    unread: 1,
+    color: "#D9F3E8",
+    messages: [
+      { id: "m1", text: "Bem-vindo ao Barbosachat! Estamos felizes por te receber.", time: "09:00", mine: false },
+      { id: "m2", text: "Obrigado! Vamos conversar.", time: "09:02", mine: true },
+    ],
+  },
+  {
+    id: "2",
+    name: "Equipa Barbosachat",
+    message: "Estamos a preparar novidades!",
+    time: "Ontem",
+    color: "#E8E8FF",
+    messages: [
+      { id: "m3", text: "Estamos a preparar novidades para ti!", time: "Ontem", mine: false },
+    ],
+  },
 ];
 
 export default function App() {
   const [tab, setTab] = useState<"Conversas" | "Contactos" | "Definições">("Conversas");
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
+  const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
-  const conversations = useMemo(
-    () => INITIAL_CONVERSATIONS.filter((item) =>
+  const activeConversation = conversations.find((item) => item.id === activeConversationId);
+
+  const filteredConversations = useMemo(
+    () => conversations.filter((item) =>
       (item.name + " " + item.message).toLowerCase().includes(search.toLowerCase())
     ),
-    [search]
+    [conversations, search]
   );
+
+  const sendMessage = () => {
+    const text = draft.trim();
+    if (!text || !activeConversationId) return;
+
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const message: ChatMessage = {
+      id: String(Date.now()),
+      text,
+      time,
+      mine: true,
+    };
+
+    setConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === activeConversationId
+          ? { ...conversation, messages: [...conversation.messages, message], message: text, time: "Agora", unread: 0 }
+          : conversation
+      )
+    );
+    setDraft("");
+  };
+
+  const openConversation = (id: string) => {
+    setActiveConversationId(id);
+    setConversations((current) =>
+      current.map((item) => item.id === id ? { ...item, unread: 0 } : item)
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" backgroundColor="#F6FBF8" />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.brand}>Barbosachat</Text>
-          <Text style={styles.subtitle}>Perto de quem importa.</Text>
-        </View>
-        <View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View>
-      </View>
+      {activeConversation ? (
+        <KeyboardAvoidingView
+          style={styles.safe}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={8}
+        >
+          <View style={styles.chatHeader}>
+            <Pressable onPress={() => setActiveConversationId(null)} style={styles.backButton}>
+              <Text style={styles.backText}>‹</Text>
+            </Pressable>
+            <View style={[styles.chatAvatar, { backgroundColor: activeConversation.color }]}>
+              <Text style={styles.chatAvatarText}>{activeConversation.name.charAt(0)}</Text>
+            </View>
+            <View style={styles.chatHeaderCopy}>
+              <Text numberOfLines={1} style={styles.chatHeaderName}>{activeConversation.name}</Text>
+              <Text style={styles.onlineText}>Conversa demonstrativa</Text>
+            </View>
+          </View>
 
-      {tab === "Conversas" && (
-        <View style={styles.content}>
-          <Text style={styles.heading}>Mensagens</Text>
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Pesquisar conversas"
-            placeholderTextColor="#82938B"
-            style={styles.search}
-          />
           <FlatList
-            data={conversations}
+            data={activeConversation.messages}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.list}
-            ListEmptyComponent={<Text style={styles.empty}>Não encontrámos conversas.</Text>}
+            contentContainerStyle={styles.messageList}
+            ListEmptyComponent={<Text style={styles.empty}>Ainda não existem mensagens. Envia a primeira!</Text>}
             renderItem={({ item }) => (
-              <Pressable style={styles.chatRow}>
-                <View style={[styles.chatAvatar, { backgroundColor: item.color }]}>
-                  <Text style={styles.chatAvatarText}>{item.name.charAt(0)}</Text>
-                </View>
-                <View style={styles.chatCopy}>
-                  <View style={styles.chatTitleRow}>
-                    <Text style={styles.chatName}>{item.name}</Text>
-                    <Text style={styles.time}>{item.time}</Text>
-                  </View>
-                  <View style={styles.chatTitleRow}>
-                    <Text numberOfLines={1} style={styles.message}>{item.message}</Text>
-                    {!!item.unread && <View style={styles.unread}><Text style={styles.unreadText}>{item.unread}</Text></View>}
-                  </View>
-                </View>
-              </Pressable>
+              <View style={[styles.messageBubble, item.mine ? styles.myBubble : styles.theirBubble]}>
+                <Text style={[styles.messageText, item.mine && styles.myMessageText]}>{item.text}</Text>
+                <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
+              </View>
             )}
           />
-        </View>
-      )}
 
-      {tab === "Contactos" && (
-        <View style={styles.content}>
-          <Text style={styles.heading}>Contactos</Text>
-          <Text style={styles.empty}>Os teus contactos aparecerão aqui quando a função de contactos estiver ligada.</Text>
-        </View>
-      )}
-
-      {tab === "Definições" && (
-        <View style={styles.content}>
-          <Text style={styles.heading}>Definições</Text>
-          <View style={styles.settingCard}>
-            <Text style={styles.settingTitle}>Tradução automática</Text>
-            <Text style={styles.settingDescription}>A tradução está desligada por defeito. Cada utilizador poderá escolher como prefere traduzir as mensagens.</Text>
-            <Pressable
-              onPress={() => setTranslationEnabled((value) => !value)}
-              style={[styles.toggle, translationEnabled && styles.toggleOn]}
-              accessibilityRole="switch"
-              accessibilityState={{ checked: translationEnabled }}
-            >
-              <Text style={styles.toggleText}>{translationEnabled ? "Ativada" : "Desativada"}</Text>
+          <View style={styles.composer}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              placeholder="Escreve uma mensagem..."
+              placeholderTextColor="#82938B"
+              style={styles.composerInput}
+              multiline
+            />
+            <Pressable onPress={sendMessage} style={styles.sendButton} accessibilityRole="button">
+              <Text style={styles.sendButtonText}>Enviar</Text>
             </Pressable>
-            <Text style={styles.languageNote}>Idioma de demonstração: Português</Text>
           </View>
-        </View>
-      )}
+        </KeyboardAvoidingView>
+      ) : (
+        <>
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.brand}>Barbosachat</Text>
+              <Text style={styles.subtitle}>Perto de quem importa.</Text>
+            </View>
+            <View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View>
+          </View>
 
-      <View style={styles.bottomNav}>
-        {(["Conversas", "Contactos", "Definições"] as const).map((item) => (
-          <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
-            <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
-          </Pressable>
-        ))}
-      </View>
+          {tab === "Conversas" && (
+            <View style={styles.content}>
+              <Text style={styles.heading}>Mensagens</Text>
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Pesquisar conversas"
+                placeholderTextColor="#82938B"
+                style={styles.search}
+              />
+              <FlatList
+                data={filteredConversations}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.list}
+                ListEmptyComponent={<Text style={styles.empty}>Não encontrámos conversas.</Text>}
+                renderItem={({ item }) => (
+                  <Pressable style={styles.chatRow} onPress={() => openConversation(item.id)}>
+                    <View style={[styles.chatAvatar, { backgroundColor: item.color }]}>
+                      <Text style={styles.chatAvatarText}>{item.name.charAt(0)}</Text>
+                    </View>
+                    <View style={styles.chatCopy}>
+                      <View style={styles.chatTitleRow}>
+                        <Text style={styles.chatName}>{item.name}</Text>
+                        <Text style={styles.time}>{item.time}</Text>
+                      </View>
+                      <View style={styles.chatTitleRow}>
+                        <Text numberOfLines={1} style={styles.message}>{item.message}</Text>
+                        {!!item.unread && <View style={styles.unread}><Text style={styles.unreadText}>{item.unread}</Text></View>}
+                      </View>
+                    </View>
+                  </Pressable>
+                )}
+              />
+            </View>
+          )}
+
+          {tab === "Contactos" && (
+            <View style={styles.content}>
+              <Text style={styles.heading}>Contactos</Text>
+              <Text style={styles.empty}>A lista de contactos será ligada quando implementarmos contas e permissões de acesso.</Text>
+            </View>
+          )}
+
+          {tab === "Definições" && (
+            <View style={styles.content}>
+              <Text style={styles.heading}>Definições</Text>
+              <View style={styles.settingCard}>
+                <Text style={styles.settingTitle}>Tradução automática</Text>
+                <Text style={styles.settingDescription}>Cada utilizador poderá escolher individualmente se pretende tradução automática ou manual.</Text>
+                <Pressable
+                  onPress={() => setTranslationEnabled((value) => !value)}
+                  style={[styles.toggle, translationEnabled && styles.toggleOn]}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: translationEnabled }}
+                >
+                  <Text style={[styles.toggleText, translationEnabled && styles.toggleTextOn]}>
+                    {translationEnabled ? "Automática ativada" : "Modo manual"}
+                  </Text>
+                </Pressable>
+                <Text style={styles.languageNote}>Idioma de demonstração: Português</Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.bottomNav}>
+            {(["Conversas", "Contactos", "Definições"] as const).map((item) => (
+              <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
+                <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      )}
     </SafeAreaView>
   );
 }
@@ -132,8 +249,8 @@ const styles = StyleSheet.create({
   search: { backgroundColor: "#EAF3EE", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, color: "#18251F", fontSize: 15, marginBottom: 12 },
   list: { paddingBottom: 18 },
   chatRow: { flexDirection: "row", alignItems: "center", paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: "#E5EEE9" },
-  chatAvatar: { width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", marginRight: 13 },
-  chatAvatarText: { color: "#0B6B4B", fontSize: 20, fontWeight: "800" },
+  chatAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  chatAvatarText: { color: "#0B6B4B", fontSize: 19, fontWeight: "800" },
   chatCopy: { flex: 1 },
   chatTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   chatName: { color: "#1B2922", fontSize: 15, fontWeight: "700", flex: 1 },
@@ -142,12 +259,31 @@ const styles = StyleSheet.create({
   unread: { backgroundColor: "#0B6B4B", borderRadius: 10, minWidth: 20, height: 20, alignItems: "center", justifyContent: "center" },
   unreadText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
   empty: { color: "#77857D", fontSize: 14, lineHeight: 22, marginTop: 8 },
+  chatHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: "#E5EEE9" },
+  backButton: { width: 34, height: 42, justifyContent: "center" },
+  backText: { color: "#0B6B4B", fontSize: 36, lineHeight: 40 },
+  chatHeaderCopy: { flex: 1 },
+  chatHeaderName: { color: "#1B2922", fontSize: 16, fontWeight: "700" },
+  onlineText: { color: "#87958E", fontSize: 11, marginTop: 3 },
+  messageList: { padding: 16, flexGrow: 1, justifyContent: "flex-end" },
+  messageBubble: { maxWidth: "82%", paddingHorizontal: 13, paddingVertical: 10, borderRadius: 16, marginBottom: 10 },
+  myBubble: { alignSelf: "flex-end", backgroundColor: "#0B6B4B", borderBottomRightRadius: 4 },
+  theirBubble: { alignSelf: "flex-start", backgroundColor: "#FFFFFF", borderBottomLeftRadius: 4, borderWidth: 1, borderColor: "#E5EEE9" },
+  messageText: { color: "#1B2922", fontSize: 14, lineHeight: 20 },
+  myMessageText: { color: "#FFFFFF" },
+  messageTime: { color: "#87958E", fontSize: 10, alignSelf: "flex-end", marginTop: 5 },
+  myMessageTime: { color: "#D4EAE0" },
+  composer: { flexDirection: "row", alignItems: "flex-end", padding: 12, backgroundColor: "#FFFFFF", borderTopWidth: 1, borderTopColor: "#E5EEE9", gap: 8 },
+  composerInput: { flex: 1, maxHeight: 100, minHeight: 42, backgroundColor: "#F0F5F2", borderRadius: 18, paddingHorizontal: 15, paddingVertical: 10, color: "#18251F", fontSize: 14 },
+  sendButton: { backgroundColor: "#0B6B4B", borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12, justifyContent: "center" },
+  sendButtonText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
   settingCard: { backgroundColor: "#FFFFFF", borderRadius: 18, padding: 18, borderWidth: 1, borderColor: "#E5EEE9" },
   settingTitle: { color: "#1B2922", fontSize: 16, fontWeight: "700" },
   settingDescription: { color: "#77857D", fontSize: 13, lineHeight: 20, marginTop: 8 },
   toggle: { alignSelf: "flex-start", marginTop: 16, backgroundColor: "#E7EEE9", paddingHorizontal: 17, paddingVertical: 10, borderRadius: 20 },
   toggleOn: { backgroundColor: "#0B6B4B" },
   toggleText: { color: "#0B6B4B", fontWeight: "700" },
+  toggleTextOn: { color: "#FFFFFF" },
   languageNote: { color: "#87958E", fontSize: 12, marginTop: 14 },
   bottomNav: { flexDirection: "row", justifyContent: "space-around", paddingTop: 14, paddingBottom: 18, backgroundColor: "#FFFFFF", borderTopWidth: 1, borderTopColor: "#E5EEE9" },
   navItem: { paddingHorizontal: 8, paddingVertical: 4 },
