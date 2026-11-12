@@ -95,9 +95,15 @@ export default function App() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setAuthReady(true);
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+        setAuthMode("login");
+        setAuthError("");
+        setAuthNotice("Link validado. Escolhe uma nova palavra-passe.");
+      }
     });
     return () => listener.subscription.unsubscribe();
   }, []);
