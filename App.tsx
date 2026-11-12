@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
-import { listMyConversations, listMessages, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
+import { createConversation, listContacts, listMyConversations, listMessages, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
 import {
   SafeAreaView,
   View,
@@ -76,6 +76,7 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState("");
+  const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -132,6 +133,25 @@ export default function App() {
       }
     };
     void loadConversations();
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let cancelled = false;
+    const loadContacts = async () => {
+      try {
+        const rows = await listContacts(session.user.id);
+        if (!cancelled) setContacts(rows.map((profile) => ({
+          id: profile.id,
+          display_name: profile.display_name || profile.username || "Utilizador Barbosachat",
+          username: profile.username,
+        })));
+      } catch (error) {
+        if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os contactos.");
+      }
+    };
+    void loadContacts();
     return () => { cancelled = true; };
   }, [session?.user.id]);
 
@@ -287,6 +307,26 @@ export default function App() {
     setDraft("");
   };
 
+  const startConversation = async (contactId: string, contactName: string) => {
+    if (!session?.user.id) return;
+    setChatError("");
+    try {
+      const conversationId = await createConversation(session.user.id, [contactId]);
+      setConversations((current) => [{
+        id: conversationId,
+        name: contactName,
+        message: "Ainda sem mensagens",
+        time: "",
+        color: "#D9F3E8",
+        messages: [],
+      }, ...current.filter((item) => item.id !== conversationId)]);
+      setActiveConversationId(conversationId);
+      setTab("Conversas");
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível iniciar a conversa.");
+    }
+  };
+
   const openConversation = (id: string) => {
     setActiveConversationId(id);
     setConversations((current) =>
@@ -439,7 +479,29 @@ export default function App() {
           {tab === "Contactos" && (
             <View style={styles.content}>
               <Text style={styles.heading}>Contactos</Text>
-              <Text style={styles.empty}>{session ? "As conversas com outros utilizadores serão iniciadas a partir dos contactos. Esta função será a próxima integração." : "Inicia sessão para aceder aos contactos."}</Text>
+              {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
+              {!session ? (
+                <Text style={styles.empty}>Inicia sessão para encontrar outros utilizadores.</Text>
+              ) : (
+                <FlatList
+                  data={contacts}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.list}
+                  ListEmptyComponent={<Text style={styles.empty}>Ainda não existem outros utilizadores registados.</Text>}
+                  renderItem={({ item }) => (
+                    <Pressable style={styles.chatRow} onPress={() => void startConversation(item.id, item.display_name)}>
+                      <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
+                        <Text style={styles.chatAvatarText}>{item.display_name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={styles.chatCopy}>
+                        <Text style={styles.chatName}>{item.display_name}</Text>
+                        <Text style={styles.message}>{item.username ? "@"+item.username : "Utilizador Barbosachat"}</Text>
+                      </View>
+                      <Text style={styles.navTextActive}>Conversar</Text>
+                    </Pressable>
+                  )}
+                />
+              )}
             </View>
           )}
 
