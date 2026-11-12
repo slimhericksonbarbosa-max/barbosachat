@@ -42,7 +42,8 @@ Testa primeiro:
 - confirmar o email, se a confirmação estiver ativa;
 - iniciar e terminar sessão;
 - verificar se o perfil é criado;
-- alterar a preferência de tradução e confirmar que fica guardada após voltar a entrar;\n- criar duas contas, iniciar uma conversa entre elas e confirmar que as mensagens aparecem em ambos os dispositivos.
+- alterar a preferência de tradução e confirmar que fica guardada após voltar a entrar;
+- criar duas contas, iniciar uma conversa entre elas e confirmar que as mensagens aparecem em ambos os dispositivos.
 
 ## Estado e limitações
 
