@@ -41,10 +41,11 @@ Antes do lançamento, testar com duas contas reais e dois dispositivos:
 4. Confirmar que o perfil é criado.
 5. Alterar o modo de tradução e confirmar que a preferência individual fica guardada.
 6. Criar uma conversa entre as duas contas e enviar mensagens nos dois sentidos.
-7. Confirmar que cada conta só consegue consultar conversas de que é membro.
-8. Confirmar que apenas membros da conversa conseguem enviar e consultar os respetivos ficheiros.
-9. Enviar uma fotografia, um vídeo, um áudio e um documento, e abrir cada item no segundo dispositivo.
-10. Ao criar novas tabelas, ativar RLS e conceder apenas os privilégios necessários.
+7. Criar um grupo, escolher pelo menos duas pessoas e confirmar que todos os participantes conseguem conversar.
+8. Confirmar que cada conta só consegue consultar conversas de que é membro.
+9. Confirmar que apenas membros da conversa conseguem enviar e consultar os respetivos ficheiros.
+10. Enviar uma fotografia, um vídeo, um áudio e um documento, e abrir cada item no segundo dispositivo.
+11. Ao criar novas tabelas, ativar RLS e conceder apenas os privilégios necessários.
 
 ## Funcionalidades ainda por concluir
 
