@@ -13,7 +13,8 @@ O projeto Supabase Barbosachat já está criado e a estrutura de dados, as regra
 - Acesso `anon` às tabelas da aplicação: revogado
 - Armazenamento: bucket privado `chat-media`, limite de 50 MB por ficheiro
 - Políticas de Storage: upload por membros autenticados, leitura por membros da conversa e eliminação pelo proprietário do ficheiro
-- Migrações aplicadas e versionadas em `supabase/migrations/` (seis no total)
+- Migrações aplicadas e versionadas em `supabase/migrations/` (sete no total)
+- Privilégios por defeito reforçados para objetos criados pelo papel `postgres` no schema `public`
 - Interface de envio: fotografia/vídeo pela galeria e áudio/documentos pelo seletor de ficheiros
 - Mensagens multimédia guardam metadados e o caminho privado no histórico
 
@@ -43,6 +44,7 @@ Antes do lançamento, testar com duas contas reais e dois dispositivos:
 7. Confirmar que cada conta só consegue consultar conversas de que é membro.
 8. Confirmar que apenas membros da conversa conseguem enviar e consultar os respetivos ficheiros.
 9. Enviar uma fotografia, um vídeo, um áudio e um documento, e abrir cada item no segundo dispositivo.
+10. Ao criar novas tabelas, ativar RLS e conceder apenas os privilégios necessários.
 
 ## Funcionalidades ainda por concluir
 
