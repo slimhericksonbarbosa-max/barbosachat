@@ -22,7 +22,7 @@ npx expo start
 
 ## Estado técnico
 
-Esta versão é um protótipo de interface. As mensagens são guardadas apenas no estado da aplicação e não são enviadas para outros dispositivos. Ainda não existe autenticação, servidor, base de dados, sincronização em tempo real ou notificações push. As preferências também ainda não ficam guardadas entre sessões.
+A interface inclui agora o fluxo de registo/início de sessão e a preparação do cliente Supabase. A autenticação e as preferências individuais só ficam operacionais depois de criares o projeto Supabase, executares `supabase/schema.sql` e configurares as variáveis locais. O envio de mensagens continua demonstrativo e local: ainda não foi ligado à base de dados nem à sincronização em tempo real. Não existem ainda notificações push.
 
 ## Próximas etapas
 
