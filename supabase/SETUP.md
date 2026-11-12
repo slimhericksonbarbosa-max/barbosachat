@@ -1,6 +1,6 @@
 # Configuração do backend do Barbosachat
 
-O projeto Supabase Barbosachat já está criado e a estrutura inicial da base de dados já foi aplicada. A aplicação contém os dados públicos de ligação predefinidos; não precisas de copiar chaves para o código.
+O projeto Supabase Barbosachat já está criado e a estrutura de dados, as regras de segurança e o armazenamento privado já foram aplicados. A aplicação contém os dados públicos de ligação predefinidos; não precisas de copiar chaves para o código.
 
 ## Estado do backend
 
@@ -13,7 +13,9 @@ O projeto Supabase Barbosachat já está criado e a estrutura inicial da base de
 - Acesso `anon` às tabelas da aplicação: revogado
 - Armazenamento: bucket privado `chat-media`, limite de 50 MB por ficheiro
 - Políticas de Storage: upload por membros autenticados, leitura por membros da conversa e eliminação pelo proprietário do ficheiro
-- Migrações aplicadas e versionadas em `supabase/migrations/`
+- Migrações aplicadas e versionadas em `supabase/migrations/` (seis no total)
+- Interface de envio: fotografia/vídeo pela galeria e áudio/documentos pelo seletor de ficheiros
+- Mensagens multimédia guardam metadados e o caminho privado no histórico
 
 ## Executar a aplicação
 
@@ -25,6 +27,8 @@ npx expo start
 ```
 
 A configuração predefinida já aponta para o projeto Barbosachat. Se precisares de substituir os valores para outro ambiente, cria um ficheiro local `.env` com base em `.env.example`. Não publiques segredos nem a chave `service_role`.
+
+As dependências de seleção de ficheiros e acesso ao sistema de ficheiros estão alinhadas com o Expo SDK 54.
 
 ## Testes necessários
 
@@ -38,9 +42,10 @@ Antes do lançamento, testar com duas contas reais e dois dispositivos:
 6. Criar uma conversa entre as duas contas e enviar mensagens nos dois sentidos.
 7. Confirmar que cada conta só consegue consultar conversas de que é membro.
 8. Confirmar que apenas membros da conversa conseguem enviar e consultar os respetivos ficheiros.
+9. Enviar uma fotografia, um vídeo, um áudio e um documento, e abrir cada item no segundo dispositivo.
 
 ## Funcionalidades ainda por concluir
 
-O backend já tem o bucket privado para ficheiros de conversa, mas a interface de envio/visualização na aplicação ainda não está implementada. Também faltam recuperação de conta, notificações push, chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
+A interface de envio e abertura de fotografias, vídeos, áudios e documentos está implementada, mas ainda precisa de testes reais em dispositivos. Também faltam recuperação de conta, notificações push, chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
 
 Nunca partilhes palavras-passe, tokens privados ou a chave `service_role` no chat ou no repositório.
