@@ -395,7 +395,7 @@ export default function App() {
             </View>
             <View style={styles.chatHeaderCopy}>
               <Text numberOfLines={1} style={styles.chatHeaderName}>{activeConversation.name}</Text>
-              <Text style={styles.onlineText}>Conversa demonstrativa</Text>
+              <Text style={styles.onlineText}>{session ? "Mensagens em tempo real" : "Conversa demonstrativa"}</Text>
             </View>
           </View>
 
