@@ -29,7 +29,8 @@
           "microphonePermission": false
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "expo-dev-client"
     ],
     "scheme": "barbosachat"
   }
