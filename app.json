@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Barbosachat",
+    "slug": "barbosachat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "splash": {
+      "backgroundColor": "#0B6B4B"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0B6B4B"
+      }
+    }
+  }
+}
