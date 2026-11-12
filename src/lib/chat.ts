@@ -18,6 +18,7 @@ export type ConversationSummary = {
   is_group: boolean;
   created_at: string;
   last_message: StoredMessage | null;
+  other_member: { display_name: string; username: string | null } | null;
 };
 
 function throwIfError(error: { message: string } | null): void {
@@ -46,6 +47,7 @@ export async function listMyConversations(userId: string): Promise<ConversationS
     .from("messages")
     .select("id, conversation_id, sender_id, body, message_type, created_at, edited_at, deleted_at")
     .in("conversation_id", ids)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
   throwIfError(latestMessages.error);
 
@@ -56,9 +58,28 @@ export async function listMyConversations(userId: string): Promise<ConversationS
     }
   }
 
+  const otherMembers = await supabase
+    .from("conversation_members")
+    .select("conversation_id, profiles(display_name, username)")
+    .in("conversation_id", ids)
+    .neq("user_id", userId);
+  throwIfError(otherMembers.error);
+
+  const otherMemberByConversation = new Map<string, { display_name: string; username: string | null }>();
+  for (const row of otherMembers.data ?? []) {
+    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    if (profile && !otherMemberByConversation.has(row.conversation_id)) {
+      otherMemberByConversation.set(row.conversation_id, {
+        display_name: profile.display_name || "",
+        username: profile.username,
+      });
+    }
+  }
+
   return (conversations.data ?? []).map((conversation) => ({
     ...conversation,
     last_message: latestByConversation.get(conversation.id) ?? null,
+    other_member: otherMemberByConversation.get(conversation.id) ?? null,
   }));
 }
 
