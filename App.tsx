@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
+import { listMyConversations, listMessages, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
 import {
   SafeAreaView,
   View,
@@ -73,6 +74,8 @@ export default function App() {
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState("");
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -101,6 +104,81 @@ export default function App() {
     void loadPreferences();
     return () => { cancelled = true; };
   }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    let cancelled = false;
+    const loadConversations = async () => {
+      setChatLoading(true);
+      setChatError("");
+      try {
+        const rows = await listMyConversations(session.user.id);
+        if (cancelled) return;
+        setConversations(rows.map((row) => {
+          const last = row.last_message;
+          return {
+            id: row.id,
+            name: row.title || (row.is_group ? "Grupo" : "Nova conversa"),
+            message: last?.body || "Ainda sem mensagens",
+            time: last ? new Date(last.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+            color: row.is_group ? "#E8E8FF" : "#D9F3E8",
+            messages: [],
+          };
+        }));
+      } catch (error) {
+        if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar as conversas.");
+      } finally {
+        if (!cancelled) setChatLoading(false);
+      }
+    };
+    void loadConversations();
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!session?.user.id || !activeConversationId) return;
+    let cancelled = false;
+    const channel = subscribeToMessages(activeConversationId, (stored) => {
+      if (stored.sender_id === session.user.id) return;
+      const incoming: ChatMessage = {
+        id: stored.id,
+        text: stored.body,
+        time: new Date(stored.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        mine: false,
+      };
+      setConversations((current) => current.map((conversation) =>
+        conversation.id === activeConversationId && !conversation.messages.some((item) => item.id === incoming.id)
+          ? { ...conversation, messages: [...conversation.messages, incoming], message: incoming.text, time: "Agora" }
+          : conversation
+      ));
+    });
+    const loadHistory = async () => {
+      setChatLoading(true);
+      setChatError("");
+      try {
+        const rows = await listMessages(activeConversationId);
+        if (cancelled) return;
+        setConversations((current) => current.map((conversation) => conversation.id === activeConversationId
+          ? { ...conversation, messages: rows.map((row) => ({
+              id: row.id,
+              text: row.body,
+              time: new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+              mine: row.sender_id === session.user.id,
+            })) }
+          : conversation
+        ));
+      } catch (error) {
+        if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar as mensagens.");
+      } finally {
+        if (!cancelled) setChatLoading(false);
+      }
+    };
+    void loadHistory();
+    return () => {
+      cancelled = true;
+      void supabase.removeChannel(channel);
+    };
+  }, [activeConversationId, session?.user.id]);
 
   const handleAuth = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -169,26 +247,43 @@ export default function App() {
     [conversations, search]
   );
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = draft.trim();
     if (!text || !activeConversationId) return;
+    if (session?.user.id) {
+      setChatError("");
+      try {
+        const stored = await sendTextMessage(activeConversationId, session.user.id, text);
+        const message: ChatMessage = {
+          id: stored.id,
+          text: stored.body,
+          time: new Date(stored.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          mine: true,
+        };
+        setConversations((current) => current.map((conversation) =>
+          conversation.id === activeConversationId
+            ? { ...conversation, messages: conversation.messages.some((item) => item.id === message.id) ? conversation.messages : [...conversation.messages, message], message: text, time: "Agora", unread: 0 }
+            : conversation
+        ));
+        setDraft("");
+      } catch (error) {
+        setChatError(error instanceof Error ? error.message : "Não foi possível enviar a mensagem.");
+      }
+      return;
+    }
 
     const now = new Date();
-    const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const message: ChatMessage = {
       id: String(Date.now()),
       text,
-      time,
+      time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       mine: true,
     };
-
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === activeConversationId
-          ? { ...conversation, messages: [...conversation.messages, message], message: text, time: "Agora", unread: 0 }
-          : conversation
-      )
-    );
+    setConversations((current) => current.map((conversation) =>
+      conversation.id === activeConversationId
+        ? { ...conversation, messages: [...conversation.messages, message], message: text, time: "Agora", unread: 0 }
+        : conversation
+    ));
     setDraft("");
   };
 
@@ -264,6 +359,8 @@ export default function App() {
             </View>
           </View>
 
+          {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
+          {chatLoading && <Text style={styles.languageNote}>A carregar mensagens...</Text>}
           <FlatList
             data={activeConversation.messages}
             keyExtractor={(item) => item.id}
@@ -304,6 +401,8 @@ export default function App() {
           {tab === "Conversas" && (
             <View style={styles.content}>
               <Text style={styles.heading}>Mensagens</Text>
+              {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
+              {session && chatLoading && <Text style={styles.languageNote}>A carregar conversas...</Text>}
               <TextInput
                 value={search}
                 onChangeText={setSearch}
@@ -340,7 +439,7 @@ export default function App() {
           {tab === "Contactos" && (
             <View style={styles.content}>
               <Text style={styles.heading}>Contactos</Text>
-              <Text style={styles.empty}>A lista de contactos será ligada quando implementarmos contas e permissões de acesso.</Text>
+              <Text style={styles.empty}>{session ? "As conversas com outros utilizadores serão iniciadas a partir dos contactos. Esta função será a próxima integração." : "Inicia sessão para aceder aos contactos."}</Text>
             </View>
           )}
 
