@@ -8,7 +8,6 @@ import { createConversation, listContacts, listMyConversations, listMessages, se
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import * as Notifications from "expo-notifications";
 import {
-  notifyChatRecipients,
   registerCurrentDeviceForPush,
   unregisterCurrentDeviceFromPush,
 } from "./src/lib/notifications";
