@@ -98,7 +98,7 @@ export async function sendTextMessage(
   return data as StoredMessage;
 }
 
-/** Creates a conversation and adds its creator as the first member. */
+/** Creates a conversation and all memberships atomically through a database function. */
 export async function createConversation(
   creatorId: string,
   memberIds: string[],
@@ -107,26 +107,14 @@ export async function createConversation(
   const uniqueMemberIds = [...new Set([creatorId, ...memberIds])];
   const isGroup = options.isGroup ?? uniqueMemberIds.length > 2;
 
-  const created = await supabase
-    .from("conversations")
-    .insert({
-      created_by: creatorId,
-      is_group: isGroup,
-      title: options.title?.trim() || null,
-    })
-    .select("id")
-    .single();
-  throwIfError(created.error);
-
-  const membership = await supabase
-    .from("conversation_members")
-    .insert(uniqueMemberIds.map((user_id) => ({
-      conversation_id: created.data.id,
-      user_id,
-    })));
-  throwIfError(membership.error);
-
-  return created.data.id;
+  const { data, error } = await supabase.rpc("create_conversation", {
+    p_member_ids: uniqueMemberIds,
+    p_title: options.title?.trim() || null,
+    p_is_group: isGroup,
+  });
+  throwIfError(error);
+  if (typeof data !== "string") throw new Error("O servidor não devolveu o identificador da conversa.");
+  return data;
 }
 
 /** Subscribes to newly inserted messages for one conversation. */
