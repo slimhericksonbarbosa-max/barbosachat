@@ -73,6 +73,7 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryPasswordConfirm, setRecoveryPasswordConfirm] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
@@ -307,6 +308,10 @@ export default function App() {
       setAuthError("A nova palavra-passe deve ter pelo menos 8 caracteres.");
       return;
     }
+    if (recoveryPassword !== recoveryPasswordConfirm) {
+      setAuthError("As palavras-passe não coincidem.");
+      return;
+    }
     setAuthBusy(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: recoveryPassword });
@@ -314,6 +319,7 @@ export default function App() {
       await supabase.auth.signOut();
       setRecoveryMode(false);
       setRecoveryPassword("");
+      setRecoveryPasswordConfirm("");
       setPassword("");
       setAuthMode("login");
       setAuthNotice("Palavra-passe atualizada. Já podes iniciar sessão.");
@@ -630,9 +636,14 @@ export default function App() {
               style={styles.authInput} secureTextEntry autoCapitalize="none" />
           )}
           {recoveryMode && (
-            <TextInput value={recoveryPassword} onChangeText={setRecoveryPassword}
-              placeholder="Nova palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
-              style={styles.authInput} secureTextEntry autoCapitalize="none" />
+            <>
+              <TextInput value={recoveryPassword} onChangeText={setRecoveryPassword}
+                placeholder="Nova palavra-passe (mínimo 8 caracteres)" placeholderTextColor="#82938B"
+                style={styles.authInput} secureTextEntry autoCapitalize="none" />
+              <TextInput value={recoveryPasswordConfirm} onChangeText={setRecoveryPasswordConfirm}
+                placeholder="Confirmar nova palavra-passe" placeholderTextColor="#82938B"
+                style={styles.authInput} secureTextEntry autoCapitalize="none" />
+            </>
           )}
           {!!authError && <Text style={styles.authError}>{authError}</Text>}
           {!!authNotice && <Text style={styles.authNotice}>{authNotice}</Text>}
