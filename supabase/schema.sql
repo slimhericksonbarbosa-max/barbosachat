@@ -87,6 +87,50 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- Create conversations and memberships in one transaction. The caller can only
+-- create conversations as their own authenticated user.
+create or replace function public.create_conversation(
+  p_member_ids uuid[],
+  p_title text default null,
+  p_is_group boolean default false
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  caller_id uuid := (select auth.uid());
+  new_conversation_id uuid;
+  normalized_member_ids uuid[];
+begin
+  if caller_id is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select array_agg(distinct member_id)
+    into normalized_member_ids
+  from unnest(coalesce(p_member_ids, '{}'::uuid[]) || array[caller_id]) as member_id;
+
+  insert into public.conversations (created_by, is_group, title)
+  values (
+    caller_id,
+    coalesce(p_is_group, false) or coalesce(cardinality(normalized_member_ids), 0) > 2,
+    nullif(trim(coalesce(p_title, '')), '')
+  )
+  returning id into new_conversation_id;
+
+  insert into public.conversation_members (conversation_id, user_id)
+  select new_conversation_id, member_id
+  from unnest(normalized_member_ids) as member_id;
+
+  return new_conversation_id;
+end;
+$;
+
+revoke all on function public.create_conversation(uuid[], text, boolean) from public;
+grant execute on function public.create_conversation(uuid[], text, boolean) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.conversations enable row level security;
 alter table public.conversation_members enable row level security;
