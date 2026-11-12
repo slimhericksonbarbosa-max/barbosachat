@@ -25,3 +25,8 @@
 
 ## Estado
 A ligação ainda não está operacional até criares o projeto e configurares as variáveis. A interface demonstrativa continua separada do backend nesta etapa.
+
+## Fluxo de autenticação incluído no aplicativo
+Depois de configurar as variáveis, o aplicativo apresenta registo e início de sessão por email e palavra-passe. O registo cria o perfil automaticamente através do trigger SQL. Se a confirmação de email estiver ativa no Supabase, a pessoa deve confirmar o endereço antes de iniciar sessão.
+
+A preferência de tradução manual/automática é carregada e guardada no perfil autenticado. A interface ainda mantém conversas demonstrativas locais; não confundas autenticação funcional com mensagens online já implementadas.
