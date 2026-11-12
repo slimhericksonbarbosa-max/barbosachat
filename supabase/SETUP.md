@@ -33,14 +33,19 @@ As dependências de seleção de ficheiros e acesso ao sistema de ficheiros est�
 
 ## Recuperação de conta
 
-A aplicação já inclui o pedido de recuperação de palavra-passe por email e o ecrã para definir uma nova palavra-passe através do link profundo `barbosachat://reset-password`. No painel Supabase, em **Authentication → URL Configuration → Redirect URLs**, adiciona exatamente `barbosachat://reset-password` à lista de redirecionamentos permitidos. Sem esta autorização, o Supabase pode rejeitar o envio do link ou redirecioná-lo incorretamente.
+A aplicação já inclui confirmação de email e recuperação de palavra-passe com retorno à aplicação. No painel Supabase, em **Authentication → URL Configuration → Redirect URLs**, adiciona exatamente estas duas entradas à lista de redirecionamentos permitidos:
+
+- `barbosachat://auth/callback`
+- `barbosachat://reset-password`
+
+Sem estas autorizações, o Supabase pode rejeitar o envio do email ou redirecioná-lo incorretamente.
 
 ## Testes necessários
 
 Antes do lançamento, testar com duas contas reais e dois dispositivos:
 
 1. Criar uma conta com um endereço de email controlado.
-2. Confirmar o email, caso a confirmação esteja ativa no Supabase Auth.
+2. Confirmar o email, caso a confirmação esteja ativa no Supabase Auth, e confirmar que a ligação abre o Barbosachat.
 3. Pedir a recuperação da palavra-passe, abrir o email num telemóvel com a aplicação instalada e guardar uma nova palavra-passe.
 4. Terminar sessão e voltar a entrar.
 5. Confirmar que o perfil é criado.
