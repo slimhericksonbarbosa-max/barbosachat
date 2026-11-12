@@ -348,7 +348,10 @@ export default function App() {
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
-          options: { data: { display_name: displayName.trim() } },
+          options: {
+            data: { display_name: displayName.trim() },
+            emailRedirectTo: "barbosachat://auth/callback",
+          },
         });
         if (error) throw error;
         if (!data.session) {
