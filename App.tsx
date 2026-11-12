@@ -119,7 +119,7 @@ export default function App() {
           const last = row.last_message;
           return {
             id: row.id,
-            name: row.title || (row.is_group ? "Grupo" : "Nova conversa"),
+            name: row.title || (row.is_group ? "Grupo" : row.other_member?.display_name || (row.other_member?.username ? "@"+row.other_member.username : "Nova conversa")),
             message: last?.body || "Ainda sem mensagens",
             time: last ? new Date(last.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
             color: row.is_group ? "#E8E8FF" : "#D9F3E8",
