@@ -11,7 +11,7 @@ on:
           - all
           - android
           - ios
-        default: all
+        default: android
       profile:
         description: EAS build profile
         required: true
