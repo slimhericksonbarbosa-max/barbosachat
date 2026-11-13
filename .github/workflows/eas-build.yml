@@ -17,9 +17,10 @@ on:
         required: true
         type: choice
         options:
+          - development
           - preview
           - production
-        default: preview
+        default: development
 
 jobs:
   build:
