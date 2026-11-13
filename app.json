@@ -13,9 +13,11 @@
       "backgroundColor": "#0B6B4B"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.slimhericksonbarbosa.barbosachat"
     },
     "android": {
+      "package": "com.slimhericksonbarbosa.barbosachat",
       "adaptiveIcon": {
         "backgroundColor": "#0B6B4B"
       }
