@@ -41,19 +41,21 @@ A aplicação já inclui confirmação de email e recuperação de palavra-passe
 
 Sem estas autorizações, o Supabase pode rejeitar o envio do email ou redirecioná-lo incorretamente.
 
-## Notificações push
+## Notificações push e builds EAS
 
 O backend já tem a tabela privada `push_tokens` e a Edge Function `send-chat-notification` ativa. A aplicação permite ao utilizador ativar notificações nas Definições e regista o token Expo do dispositivo. A função só envia notificações depois de validar a sessão, a autoria da mensagem e os membros da conversa.
 
-Para ativar a entrega real:
+A associação do projeto EAS já está configurada no `app.json`. Para permitir que o GitHub Actions inicie builds:
 
-1. Criar ou entrar numa conta Expo.
-2. Na raiz do projeto, executar `npx eas-cli@latest login` e depois `npx eas-cli@latest init`. O EAS associa o projeto e grava `expo.extra.eas.projectId` no `app.json`.
-3. Configurar as credenciais de notificações para Android (FCM V1) e iOS (APNs) no EAS quando forem solicitadas.
-4. Criar uma development build com `npx eas-cli@latest build --profile development --platform all` e instalar nos dispositivos físicos. O perfil de desenvolvimento já está preparado em `eas.json`.
-5. Abrir a aplicação, iniciar sessão e ativar as notificações em Definições. O Expo Go não suporta notificações push remotas em Android a partir do SDK 53.
+1. Na tua conta Expo, cria um access token em **Account Settings → Access Tokens**.
+2. No GitHub, abre o repositório **Settings → Secrets and variables → Actions → New repository secret**.
+3. Cria um segredo com o nome exato `EXPO_TOKEN` e cola nele o token Expo. Não coloques o token no código, em ficheiros do repositório ou nesta conversa.
+4. Abre **Actions → Barbosachat EAS build → Run workflow**.
+5. Escolhe a plataforma e o perfil `development` para criar a primeira development build. O workflow também permite `preview` e `production`.
 
-O envio de notificações usa o Expo Push Service. Os tokens são privados e cada utilizador só pode gerir os seus próprios tokens.
+Para builds iniciadas localmente, usa `npx eas-cli@latest login` e depois `npx eas-cli@latest build --profile development --platform all`. Não é necessário executar `eas init` novamente, pois a associação já está gravada.
+
+Configura as credenciais de notificações para Android (FCM V1) e iOS (APNs) no EAS quando forem solicitadas. Depois instala a development build em dispositivos físicos, inicia sessão e ativa as notificações em Definições. O Expo Go não suporta notificações push remotas em Android a partir do SDK 53.
 
 ## Testes necessários
 
@@ -75,6 +77,6 @@ Antes do lançamento, testar com duas contas reais e dois dispositivos:
 
 ## Funcionalidades ainda por concluir
 
-A interface de envio e abertura de fotografias, vídeos, áudios e documentos está implementada, mas ainda precisa de testes reais em dispositivos. A recuperação de conta está implementada, mas os redirecionamentos Supabase ainda precisam de ser autorizados. As notificações push estão preparadas no código e no backend, mas exigem configuração EAS e credenciais APNs/FCM. Ainda faltam chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
+A interface de envio e abertura de fotografias, vídeos, áudios e documentos está implementada, mas ainda precisa de testes reais em dispositivos. A recuperação de conta está implementada, mas os redirecionamentos Supabase ainda precisam de ser autorizados. As notificações push estão preparadas no código e no backend, mas exigem o segredo `EXPO_TOKEN`, uma development build e credenciais APNs/FCM. Ainda faltam chamadas de voz/vídeo, bloqueios e denúncias. Estes módulos precisam de implementação e testes próprios antes de um lançamento público.
 
 Nunca partilhes palavras-passe, tokens privados ou a chave `service_role` no chat ou no repositório.
