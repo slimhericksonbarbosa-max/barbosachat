@@ -489,7 +489,7 @@ export default function App() {
       .from("profiles")
       .update({
         translation_mode: enabled ? "automatic" : "manual",
-        preferred_language: "pt",
+        preferred_language: preferredLanguage,
         updated_at: new Date().toISOString(),
       })
       .eq("id", session.user.id);
