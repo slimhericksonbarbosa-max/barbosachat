@@ -54,6 +54,15 @@ type Conversation = {
   messages: ChatMessage[];
 };
 
+const LANGUAGE_OPTIONS = [
+  { code: "pt", label: "Português" },
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "fr", label: "Français" },
+  { code: "ar", label: "العربية" },
+  { code: "zh", label: "中文" },
+] as const;
+
 const INITIAL_CONVERSATIONS: Conversation[] = [
   {
     id: "1",
@@ -95,7 +104,9 @@ export default function App() {
   const [tab, setTab] = useState<"Conversas" | "Contactos" | "Definições">("Conversas");
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
+  const [preferredLanguage, setPreferredLanguage] = useState("pt");
   const [preferenceLoading, setPreferenceLoading] = useState(false);
+  const [languageNotice, setLanguageNotice] = useState("");
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -222,6 +233,7 @@ export default function App() {
         .maybeSingle();
       if (!cancelled && !error && data) {
         setTranslationEnabled(data.translation_mode === "automatic");
+        setPreferredLanguage(data.preferred_language || "pt");
       }
       if (!cancelled) setPreferenceLoading(false);
     };
@@ -483,6 +495,25 @@ export default function App() {
       .eq("id", session.user.id);
     if (error) {
       setAuthError("Não foi possível guardar a preferência. Verifica a ligação.");
+    }
+    setPreferenceLoading(false);
+  };
+
+  const savePreferredLanguage = async (language: string) => {
+    if (!session?.user.id || language === preferredLanguage) return;
+    const previousLanguage = preferredLanguage;
+    setPreferredLanguage(language);
+    setPreferenceLoading(true);
+    setLanguageNotice("");
+    const { error } = await supabase
+      .from("profiles")
+      .update({ preferred_language: language, updated_at: new Date().toISOString() })
+      .eq("id", session.user.id);
+    if (error) {
+      setPreferredLanguage(previousLanguage);
+      setLanguageNotice("Não foi possível guardar o idioma. Tenta novamente.");
+    } else {
+      setLanguageNotice("Idioma preferido guardado na tua conta.");
     }
     setPreferenceLoading(false);
   };
@@ -988,7 +1019,24 @@ export default function App() {
                     {translationEnabled ? "Automática ativada" : "Modo manual"}
                   </Text>
                 </Pressable>
-                <Text style={styles.languageNote}>Idioma: Português {session ? "· preferência guardada na tua conta" : "· demonstração local"}</Text>
+                <Text style={[styles.settingTitle, { marginTop: 20 }]}>Idioma preferido</Text>
+                <Text style={styles.settingDescription}>Escolhe o idioma que pretendes usar nas traduções. Esta preferência é individual da tua conta.</Text>
+                <View style={styles.languageOptions}>
+                  {LANGUAGE_OPTIONS.map((language) => (
+                    <Pressable
+                      key={language.code}
+                      onPress={() => void savePreferredLanguage(language.code)}
+                      disabled={!session || preferenceLoading}
+                      style={[styles.languageOption, preferredLanguage === language.code && styles.languageOptionSelected]}
+                    >
+                      <Text style={[styles.languageOptionText, preferredLanguage === language.code && styles.languageOptionTextSelected]}>
+                        {language.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {!session && <Text style={styles.languageNote}>Inicia sessão para guardar a tua preferência.</Text>}
+                {!!languageNotice && <Text style={styles.languageNote}>{languageNotice}</Text>}
                 {preferenceLoading && <Text style={styles.languageNote}>A guardar preferência...</Text>}
               </View>
               {session && (
@@ -1097,6 +1145,11 @@ const styles = StyleSheet.create({
   toggleText: { color: "#0B6B4B", fontWeight: "700" },
   toggleTextOn: { color: "#FFFFFF" },
   languageNote: { color: "#87958E", fontSize: 12, marginTop: 14 },
+  languageOptions: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  languageOption: { borderWidth: 1, borderColor: "#DCE7E0", borderRadius: 18, paddingHorizontal: 12, paddingVertical: 9, backgroundColor: "#F6FBF8" },
+  languageOptionSelected: { borderColor: "#0B6B4B", backgroundColor: "#E1F3E9" },
+  languageOptionText: { color: "#526158", fontSize: 12, fontWeight: "600" },
+  languageOptionTextSelected: { color: "#0B6B4B", fontWeight: "800" },
   bottomNav: { flexDirection: "row", justifyContent: "space-around", paddingTop: 14, paddingBottom: 18, backgroundColor: "#FFFFFF", borderTopWidth: 1, borderTopColor: "#E5EEE9" },
   navItem: { paddingHorizontal: 8, paddingVertical: 4 },
   navText: { color: "#84928B", fontSize: 12, fontWeight: "600" },
