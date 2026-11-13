@@ -32,6 +32,11 @@
       "expo-notifications",
       "expo-dev-client"
     ],
-    "scheme": "barbosachat"
+    "scheme": "barbosachat",
+    "extra": {
+      "eas": {
+        "projectId": "fa03a43f-516b-4704-ab86-d0f11866118f"
+      }
+    }
   }
 }
