@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  typecheck:
+  typecheck-and-export:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -16,7 +16,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: TypeScript check
         run: npm run check
+      - name: Expo project diagnostics
+        run: npx expo-doctor
+      - name: Export iOS bundle
+        run: npx expo export --platform ios
+      - name: Export Android bundle
+        run: npx expo export --platform android
