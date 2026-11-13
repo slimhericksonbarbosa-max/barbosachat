@@ -28,16 +28,17 @@ O projeto já inclui a URL e a chave pública (publishable) do Supabase Barbosac
 
 ## Estado técnico
 
-A aplicação inclui registo/início de sessão, perfis, descoberta de contactos, criação de conversas, envio e histórico de mensagens persistentes e subscrição Realtime. O backend Supabase também tem um bucket privado `chat-media` com políticas de acesso limitadas aos membros de cada conversa e uploads limitados a 50 MB. A interface de envio de fotografias, vídeos, áudios e documentos já está integrada; faltam testes reais em dispositivos e validação ponta a ponta. Ainda são necessários testes de ponta a ponta com duas contas reais, configuração/validação de email e testes em dispositivos. As notificações push já têm registo de dispositivos, função Edge segura e integração com Expo; ainda falta associar o projeto EAS e configurar credenciais nativas para testes reais.
+A aplicação inclui registo/início de sessão, perfis, descoberta de contactos, criação de conversas, envio e histórico de mensagens persistentes e subscrição Realtime. O backend Supabase tem um bucket privado `chat-media` com políticas de acesso limitadas aos membros de cada conversa e uploads limitados a 50 MB. A interface de envio de fotografias, vídeos, áudios e documentos está integrada; faltam testes reais em dispositivos e validação ponta a ponta. A associação EAS já está configurada no `app.json`; a primeira development build e as credenciais nativas de notificações ainda estão pendentes.
 
 ## Próximas etapas
 
-1. Testar registo, início de sessão e recuperação de palavra-passe com duas contas reais.
-2. Rever fluxos de confirmação de email e configurar o redirecionamento `barbosachat://reset-password` no Supabase.
-3. Testar o envio e a abertura de fotografias, vídeos, áudio e documentos com duas contas reais.
-4. Configurar o projeto EAS, as credenciais APNs/FCM e testar notificações push em dispositivos físicos.
-5. Avaliar chamadas de voz/vídeo.
-6. Implementar bloqueios, denúncias e políticas de privacidade.
+1. Configurar o segredo `EXPO_TOKEN` no GitHub e executar a development build pelo workflow **Barbosachat EAS build**.
+2. Configurar as credenciais APNs/FCM no EAS e testar notificações push em dispositivos físicos.
+3. Adicionar os redirecionamentos `barbosachat://auth/callback` e `barbosachat://reset-password` à lista permitida do Supabase Auth.
+4. Testar registo, início de sessão e recuperação de palavra-passe com duas contas reais.
+5. Testar o envio e a abertura de fotografias, vídeos, áudio e documentos com duas contas reais.
+6. Avaliar chamadas de voz/vídeo.
+7. Implementar bloqueios, denúncias e políticas de privacidade.
 
 As funcionalidades de rede e comunicação real devem ser testadas antes de qualquer lançamento público.
 
