@@ -1,6 +1,11 @@
 name: Barbosachat Android build
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/eas-build.yml
   workflow_dispatch:
     inputs:
       profile:
@@ -31,4 +36,4 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Run Android EAS build
-        run: eas build --platform android --profile ${{ inputs.profile }} --non-interactive
+        run: eas build --platform android --profile ${{ inputs.profile || 'preview' }} --non-interactive
