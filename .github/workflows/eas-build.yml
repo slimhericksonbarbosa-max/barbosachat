@@ -1,26 +1,17 @@
-name: Barbosachat EAS build
+name: Barbosachat Android build
 
 on:
   workflow_dispatch:
     inputs:
-      platform:
-        description: Platform to build
-        required: true
-        type: choice
-        options:
-          - all
-          - android
-          - ios
-        default: android
       profile:
         description: EAS build profile
         required: true
         type: choice
         options:
-          - development
           - preview
+          - development
           - production
-        default: development
+        default: preview
 
 jobs:
   build:
@@ -39,5 +30,5 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Run EAS build
-        run: eas build --platform ${{ inputs.platform }} --profile ${{ inputs.profile }} --non-interactive
+      - name: Run Android EAS build
+        run: eas build --platform android --profile ${{ inputs.profile }} --non-interactive
