@@ -895,7 +895,7 @@ export default function App() {
                     <Text style={[styles.messageText, item.mine && styles.myMessageText]}>
                       {item.mediaKind === "image" ? "📷 Fotografia" : item.mediaKind === "video" ? "🎬 Vídeo" : item.mediaKind === "audio" ? "🎵 Áudio" : "📎 Ficheiro"}
                       {"\n"}{item.mediaName || item.text}
-                      {"\n"}Toque para abrir
+                      {"\n"}{item.mediaKind === "audio" ? "Toque para ouvir" : "Toque para abrir"}
                     </Text>
                   </Pressable>
                 ) : (
