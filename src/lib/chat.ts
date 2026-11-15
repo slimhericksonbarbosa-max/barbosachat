@@ -210,3 +210,31 @@ export async function listContacts(currentUserId: string): Promise<ContactProfil
   throwIfError(error);
   return (data ?? []) as ContactProfile[];
 }
+
+
+export type PendingConversationInvite = {
+  id: string;
+  conversation_id: string;
+  inviter_id: string;
+  created_at: string;
+};
+
+export async function listPendingConversationInvites(): Promise<PendingConversationInvite[]> {
+  const { data, error } = await supabase
+    .from("conversation_invites")
+    .select("id, conversation_id, inviter_id, created_at")
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  throwIfError(error);
+  return (data ?? []) as PendingConversationInvite[];
+}
+
+export async function respondToConversationInvite(inviteId: string, accept: boolean): Promise<string> {
+  const { data, error } = await supabase.rpc("respond_to_conversation_invite", {
+    p_invite_id: inviteId,
+    p_accept: accept,
+  });
+  throwIfError(error);
+  if (typeof data !== "string") throw new Error("O servidor não devolveu a conversa do convite.");
+  return data;
+}
