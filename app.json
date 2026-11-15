@@ -32,6 +32,7 @@
           "microphonePermission": false
         }
       ],
+      ["expo-audio", { "microphonePermission": "O Barbosachat precisa de acesso ao microfone para gravares mensagens de voz." }],
       "expo-notifications",
       "expo-dev-client"
     ],
