@@ -564,16 +564,32 @@ export default function App() {
     setChatError("");
     let uploadedPath: string | undefined;
     try {
-      const file = new File(uri);
-      if (!file.exists) throw new Error("Não foi possível ler o ficheiro selecionado.");
-      if (file.size > 50 * 1024 * 1024) throw new Error("O ficheiro excede o limite de 50 MB.");
-      const bytes = await file.bytes();
+      // On web, Expo FileSystem's native File class can fail with
+      // "this.validatePath is not a function". Browser picker URIs are read
+      // with fetch; keep Expo File for native iOS/Android local URIs.
+      let bytes: ArrayBuffer | Uint8Array;
+      let detectedContentType = contentType;
+      if (Platform.OS === "web") {
+        const response = await fetch(uri);
+        if (!response.ok) throw new Error("Não foi possível ler o ficheiro selecionado.");
+        const blob = await response.blob();
+        if (blob.size > 50 * 1024 * 1024) throw new Error("O ficheiro excede o limite de 50 MB.");
+        if (!blob.size) throw new Error("O ficheiro está vazio.");
+        bytes = await blob.arrayBuffer();
+        detectedContentType = contentType || blob.type || "application/octet-stream";
+      } else {
+        const file = new File(uri);
+        if (!file.exists) throw new Error("Não foi possível ler o ficheiro selecionado.");
+        if (file.size > 50 * 1024 * 1024) throw new Error("O ficheiro excede o limite de 50 MB.");
+        bytes = await file.bytes();
+        detectedContentType = contentType || file.type || "application/octet-stream";
+      }
       const uploaded = await uploadChatMedia({
         conversationId: activeConversationId,
         userId: session.user.id,
         fileData: bytes,
         fileName,
-        contentType: contentType || file.type || "application/octet-stream",
+        contentType: detectedContentType,
         kind,
       });
       uploadedPath = uploaded.path;
