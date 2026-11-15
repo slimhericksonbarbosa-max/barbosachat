@@ -138,7 +138,7 @@ export default function App() {
     let cancelled = false;
     const loadInvites = async () => {
       try {
-        const rows = await listPendingConversationInvites();
+        const rows = await listPendingConversationInvites(session.user.id);
         if (!cancelled) setPendingInvites(rows);
       } catch (error) {
         if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os convites.");
