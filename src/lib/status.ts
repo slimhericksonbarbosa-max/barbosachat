@@ -1,11 +1,11 @@
 import { supabase } from "./supabase";
 
-export type StatusMediaType = "image" | "video";
+export type StatusMediaType = "image" | "video" | "text";
 
 export type StatusUpdate = {
   id: string;
   user_id: string;
-  media_path: string;
+  media_path: string | null;
   media_type: StatusMediaType;
   caption: string;
   created_at: string;
@@ -77,6 +77,30 @@ export async function publishStatus(input: {
     await supabase.storage.from("status-media").remove([path]).catch(() => undefined);
     throw new Error(error?.message ?? "Não foi possível publicar o estado.");
   }
+  return data as StatusUpdate;
+}
+
+
+/** Publishes a text-only status; it expires automatically after 24 hours. */
+export async function publishTextStatus(input: {
+  userId: string;
+  text: string;
+}): Promise<StatusUpdate> {
+  const caption = input.text.trim();
+  if (!input.userId) throw new Error("Inicia sessão para publicar um estado.");
+  if (!caption) throw new Error("Escreve o texto do teu estado.");
+  if (caption.length > 700) throw new Error("O estado pode ter no máximo 700 caracteres.");
+  const { data, error } = await supabase
+    .from("status_updates")
+    .insert({
+      user_id: input.userId,
+      media_path: null,
+      media_type: "text",
+      caption,
+    })
+    .select("id, user_id, media_path, media_type, caption, created_at, expires_at")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Não foi possível publicar o estado.");
   return data as StatusUpdate;
 }
 
