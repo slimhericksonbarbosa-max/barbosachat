@@ -8,6 +8,7 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
   useAudioRecorderState,
+  useAudioPlayer,
 } from "expo-audio";
 import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
@@ -123,6 +124,7 @@ export default function App() {
   const [mediaBusy, setMediaBusy] = useState(false);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
+  const audioPlayer = useAudioPlayer(null);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
   const [groupMode, setGroupMode] = useState(false);
@@ -663,6 +665,11 @@ export default function App() {
     if (!item.mediaPath) return;
     try {
       const url = await createChatMediaUrl(item.mediaPath);
+      if (item.mediaKind === "audio") {
+        audioPlayer.replace(url);
+        audioPlayer.play();
+        return;
+      }
       await Linking.openURL(url);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Não foi possível abrir o ficheiro.");
