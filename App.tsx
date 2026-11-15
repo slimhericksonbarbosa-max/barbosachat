@@ -14,6 +14,7 @@ import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
+import { createStatusMediaUrl, listActiveStatuses, publishStatus, type StatusUpdate } from "./src/lib/status";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -111,7 +112,10 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [tab, setTab] = useState<"Conversas" | "Contactos" | "Definições">("Conversas");
+  const [tab, setTab] = useState<"Conversas" | "Estados" | "Contactos" | "Definições">("Conversas");
+  const [statuses, setStatuses] = useState<StatusUpdate[]>([]);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusNotice, setStatusNotice] = useState("");
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
@@ -129,6 +133,79 @@ export default function App() {
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingConversationInvite[]>([]);
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setStatuses([]);
+      return;
+    }
+    let cancelled = false;
+    const refreshStatuses = async () => {
+      try {
+        const rows = await listActiveStatuses();
+        if (!cancelled) setStatuses(rows);
+      } catch (error) {
+        if (!cancelled) setStatusNotice(error instanceof Error ? error.message : "Não foi possível carregar os estados.");
+      }
+    };
+    void refreshStatuses();
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
+  const publishNewStatus = async () => {
+    if (!session?.user.id || statusBusy) return;
+    setStatusBusy(true);
+    setStatusNotice("");
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) throw new Error("Permite o acesso às fotografias para publicar um estado.");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: false,
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const mediaType = asset.type === "video" ? "video" : "image";
+      const contentType = asset.mimeType || (mediaType === "video" ? "video/mp4" : "image/jpeg");
+      let fileData: ArrayBuffer | Uint8Array;
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        if (!response.ok) throw new Error("Não foi possível ler o ficheiro selecionado.");
+        const blob = await response.blob();
+        if (!blob.size || blob.size > 50 * 1024 * 1024) throw new Error("O ficheiro deve ter entre 1 byte e 50 MB.");
+        fileData = await blob.arrayBuffer();
+      } else {
+        const pickedFile = new File(asset.uri);
+        if (!pickedFile.exists) throw new Error("Não foi possível ler o ficheiro selecionado.");
+        if (!pickedFile.size || pickedFile.size > 50 * 1024 * 1024) throw new Error("O ficheiro deve ter entre 1 byte e 50 MB.");
+        fileData = await pickedFile.bytes();
+      }
+      await publishStatus({
+        userId: session.user.id,
+        fileData,
+        fileName: asset.fileName || (mediaType === "video" ? "estado.mp4" : "estado.jpg"),
+        contentType,
+        mediaType,
+      });
+      const rows = await listActiveStatuses();
+      setStatuses(rows);
+      setStatusNotice("Estado publicado. Ficará disponível durante 24 horas.");
+    } catch (error) {
+      setStatusNotice(error instanceof Error ? error.message : "Não foi possível publicar o estado.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
+  const openStatus = async (status: StatusUpdate) => {
+    try {
+      const url = await createStatusMediaUrl(status.media_path);
+      await Linking.openURL(url);
+    } catch (error) {
+      setStatusNotice(error instanceof Error ? error.message : "Não foi possível abrir este estado.");
+    }
+  };
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -1050,6 +1127,42 @@ export default function App() {
             </View>
           )}
 
+          {tab === "Estados" && (
+            <View style={styles.content}>
+              <View style={styles.groupHeader}>
+                <Text style={styles.heading}>Estados</Text>
+                <Pressable onPress={() => void publishNewStatus()} disabled={!session || statusBusy} style={[styles.mediaButton, statusBusy && styles.authButtonDisabled]}>
+                  <Text style={styles.mediaButtonText}>{statusBusy ? "A publicar..." : "+ Publicar"}</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.settingDescription}>Partilha uma fotografia ou vídeo com os teus contactos. Os estados desaparecem após 24 horas.</Text>
+              {!!statusNotice && <Text style={styles.languageNote}>{statusNotice}</Text>}
+              {!session ? (
+                <Text style={styles.empty}>Inicia sessão para ver e publicar estados.</Text>
+              ) : (
+                <FlatList
+                  data={statuses}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.list}
+                  ListEmptyComponent={<Text style={styles.empty}>Ainda não há estados ativos. Sê o primeiro a publicar!</Text>}
+                  renderItem={({ item }) => (
+                    <Pressable style={styles.chatRow} onPress={() => void openStatus(item)}>
+                      <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
+                        <Text style={styles.chatAvatarText}>{item.media_type === "video" ? "▶" : "●"}</Text>
+                      </View>
+                      <View style={styles.chatCopy}>
+                        <Text style={styles.chatName}>{item.user_id === session.user.id ? "O teu estado" : "Estado de um contacto"}</Text>
+                        <Text style={styles.message}>{item.media_type === "video" ? "Vídeo" : "Fotografia"} · {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                        <Text style={styles.languageNote}>Expira: {new Date(item.expires_at).toLocaleString()}</Text>
+                      </View>
+                      <Text style={styles.navTextActive}>Abrir</Text>
+                    </Pressable>
+                  )}
+                />
+              )}
+            </View>
+          )}
+
           {tab === "Contactos" && (
             <View style={styles.content}>
               <View style={styles.groupHeader}>
@@ -1211,7 +1324,7 @@ export default function App() {
           )}
 
           <View style={styles.bottomNav}>
-            {(["Conversas", "Contactos", "Definições"] as const).map((item) => (
+            {(["Conversas", "Estados", "Contactos", "Definições"] as const).map((item) => (
               <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
                 <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
               </Pressable>
