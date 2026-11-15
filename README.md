@@ -61,6 +61,15 @@ npx expo start
 
 O projeto já inclui a URL e a chave pública (publishable) do Supabase Barbosachat como configuração predefinida. Opcionalmente, podes substituir estes valores através de `.env`, usando o modelo em `.env.example`.
 
+## Testar no iPhone com Expo Go
+
+1. Instala e abre o Expo Go no iPhone.
+2. No terminal, dentro da pasta do projeto, executa `npm run start:go`.
+3. Aguarda o QR code e abre-o com a câmara do iPhone; escolhe abrir no Expo Go.
+4. Mantém o terminal em execução enquanto testas a aplicação.
+
+O comando usa o túnel do Expo para permitir a ligação mesmo quando o iPhone e o ambiente de desenvolvimento não estão na mesma rede. O Expo Go serve para testar a interface e os fluxos compatíveis; notificações push remotas e funcionalidades que exijam módulos nativos personalizados precisam de uma development build.
+
 ## Configuração do Supabase
 
 Segue o guia passo a passo em [supabase/SETUP.md](supabase/SETUP.md). O ficheiro [.env.example](.env.example) contém apenas valores públicos de cliente. Nunca publiques segredos ou a chave `service_role`.
