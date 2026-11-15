@@ -681,14 +681,16 @@ export default function App() {
     setChatError("");
     try {
       const conversationId = await createConversation(session.user.id, [contactId]);
-      setConversations((current) => [{
-        id: conversationId,
-        name: contactName,
-        message: "Ainda sem mensagens",
-        time: "",
-        color: "#D9F3E8",
-        messages: [],
-      }, ...current.filter((item) => item.id !== conversationId)]);
+      setConversations((current) => current.some((item) => item.id === conversationId)
+        ? current
+        : [{
+            id: conversationId,
+            name: contactName,
+            message: "Ainda sem mensagens",
+            time: "",
+            color: "#D9F3E8",
+            messages: [],
+          }, ...current]);
       setActiveConversationId(conversationId);
       setTab("Conversas");
     } catch (error) {
