@@ -2,6 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, sendMediaMessage, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
@@ -114,6 +121,8 @@ export default function App() {
   const [draft, setDraft] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
   const [groupMode, setGroupMode] = useState(false);
@@ -617,6 +626,39 @@ export default function App() {
     }
   };
 
+  const startVoiceRecording = async () => {
+    if (!session?.user.id || !activeConversationId || Platform.OS === "web") {
+      if (Platform.OS === "web") setChatError("A gravação de voz está disponível na aplicação Android e iPhone.");
+      return;
+    }
+    try {
+      setChatError("");
+      const permission = await AudioModule.requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setChatError("Autoriza o acesso ao microfone para gravares uma mensagem de voz.");
+        return;
+      }
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível iniciar a gravação.");
+    }
+  };
+
+  const stopAndSendVoiceMessage = async () => {
+    if (!session?.user.id || !activeConversationId) return;
+    try {
+      await audioRecorder.stop();
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
+      const recordingUri = audioRecorder.uri;
+      if (!recordingUri) throw new Error("A gravação não foi guardada. Tenta novamente.");
+      await sendPickedFile(recordingUri, "mensagem-de-voz.m4a", "audio/mp4", "audio");
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível enviar a mensagem de voz.");
+    }
+  };
+
   const openMedia = async (item: ChatMessage) => {
     if (!item.mediaPath) return;
     try {
@@ -864,6 +906,17 @@ export default function App() {
               </Pressable>
               <Pressable onPress={() => void pickDocumentOrAudio()} disabled={mediaBusy} style={styles.mediaButton}>
                 <Text style={styles.mediaButtonText}>Ficheiro/áudio</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void (recorderState.isRecording ? stopAndSendVoiceMessage() : startVoiceRecording())}
+                disabled={mediaBusy}
+                style={[styles.mediaButton, recorderState.isRecording && { backgroundColor: "#FCE8E6" }]}
+              >
+                <Text style={[styles.mediaButtonText, recorderState.isRecording && { color: "#B42318" }]}>
+                  {recorderState.isRecording
+                    ? `Parar e enviar voz · ${Math.floor(recorderState.durationMillis / 1000)}s`
+                    : "🎙 Gravar voz"}
+                </Text>
               </Pressable>
             </View>
           )}
