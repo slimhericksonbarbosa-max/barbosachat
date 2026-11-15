@@ -12,7 +12,7 @@ import {
 } from "expo-audio";
 import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
-import { createConversation, listContacts, listMyConversations, listMessages, sendMediaMessage, sendTextMessage, subscribeToMessages } from "./src/lib/chat";
+import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import * as Notifications from "expo-notifications";
 import {
@@ -127,6 +127,27 @@ export default function App() {
   const audioPlayer = useAudioPlayer(null);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingConversationInvite[]>([]);
+  const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setPendingInvites([]);
+      return;
+    }
+    let cancelled = false;
+    const loadInvites = async () => {
+      try {
+        const rows = await listPendingConversationInvites();
+        if (!cancelled) setPendingInvites(rows);
+      } catch (error) {
+        if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os convites.");
+      }
+    };
+    void loadInvites();
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
+
   const [groupMode, setGroupMode] = useState(false);
   const [groupTitle, setGroupTitle] = useState("");
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
@@ -760,7 +781,7 @@ export default function App() {
       setConversations((current) => [{
         id: conversationId,
         name: title,
-        message: "Grupo criado. Envia a primeira mensagem!",
+        message: "Grupo criado. Convites enviados; aguarda a aceitação dos participantes.",
         time: "",
         color: "#E8E8FF",
         messages: [],
@@ -774,6 +795,33 @@ export default function App() {
       setChatError(error instanceof Error ? error.message : "Não foi possível criar o grupo.");
     } finally {
       setGroupBusy(false);
+    }
+  };
+
+
+  const handleConversationInvite = async (invite: PendingConversationInvite, accept: boolean) => {
+    setInviteBusyId(invite.id);
+    setChatError("");
+    try {
+      const conversationId = await respondToConversationInvite(invite.id, accept);
+      setPendingInvites((current) => current.filter((item) => item.id !== invite.id));
+      if (accept && session?.user.id) {
+        const rows = await listMyConversations(session.user.id);
+        setConversations(rows.map((row) => ({
+          id: row.id,
+          name: row.title || (row.is_group ? "Grupo" : row.other_member?.display_name || (row.other_member?.username ? "@" + row.other_member.username : "Nova conversa")),
+          message: row.last_message?.body || "Ainda sem mensagens",
+          time: row.last_message ? new Date(row.last_message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
+          color: row.is_group ? "#E8E8FF" : "#D9F3E8",
+          messages: [],
+        })));
+        setActiveConversationId(conversationId);
+        setTab("Conversas");
+      }
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : "Não foi possível responder ao convite.");
+    } finally {
+      setInviteBusyId(null);
     }
   };
 
@@ -1006,6 +1054,26 @@ export default function App() {
                   </Pressable>
                 )}
               </View>
+
+              {session && pendingInvites.length > 0 && (
+                <View style={styles.groupComposer}>
+                  <Text style={styles.settingTitle}>Convites recebidos ({pendingInvites.length})</Text>
+                  {pendingInvites.map((invite) => (
+                    <View key={invite.id} style={styles.inviteRow}>
+                      <View style={styles.chatCopy}>
+                        <Text style={styles.chatName}>Convite para um grupo</Text>
+                        <Text style={styles.message}>Recebido em {new Date(invite.created_at).toLocaleDateString()}</Text>
+                      </View>
+                      <Pressable onPress={() => void handleConversationInvite(invite, true)} disabled={inviteBusyId === invite.id} style={styles.inviteAccept}>
+                        <Text style={styles.inviteAcceptText}>{inviteBusyId === invite.id ? "..." : "Aceitar"}</Text>
+                      </Pressable>
+                      <Pressable onPress={() => void handleConversationInvite(invite, false)} disabled={inviteBusyId === invite.id} style={styles.inviteDecline}>
+                        <Text style={styles.inviteDeclineText}>Recusar</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
               {groupMode && (
                 <View style={styles.groupComposer}>
                   <TextInput
@@ -1195,6 +1263,11 @@ const styles = StyleSheet.create({
   groupHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   groupComposer: { backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: "#E5EEE9" },
   groupSelectedRow: { backgroundColor: "#EAF3EE", borderRadius: 12, paddingHorizontal: 10 },
+  inviteRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 7 },
+  inviteAccept: { backgroundColor: "#0B6B4B", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  inviteAcceptText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+  inviteDecline: { backgroundColor: "#FCE8E6", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  inviteDeclineText: { color: "#B42318", fontSize: 11, fontWeight: "700" },
   mediaActions: { flexDirection: "row", gap: 8, paddingHorizontal: 12, paddingTop: 8, backgroundColor: "#FFFFFF" },
   mediaButton: { backgroundColor: "#EAF3EE", borderRadius: 14, paddingHorizontal: 13, paddingVertical: 8 },
   mediaButtonText: { color: "#0B6B4B", fontSize: 12, fontWeight: "700" },
