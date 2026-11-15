@@ -219,11 +219,12 @@ export type PendingConversationInvite = {
   created_at: string;
 };
 
-export async function listPendingConversationInvites(): Promise<PendingConversationInvite[]> {
+export async function listPendingConversationInvites(currentUserId: string): Promise<PendingConversationInvite[]> {
   const { data, error } = await supabase
     .from("conversation_invites")
     .select("id, conversation_id, inviter_id, created_at")
     .eq("status", "pending")
+    .eq("invitee_id", currentUserId)
     .order("created_at", { ascending: false });
   throwIfError(error);
   return (data ?? []) as PendingConversationInvite[];
