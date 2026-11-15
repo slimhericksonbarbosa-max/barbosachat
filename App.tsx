@@ -14,7 +14,7 @@ import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
-import { createStatusMediaUrl, listActiveStatuses, publishStatus, type StatusUpdate } from "./src/lib/status";
+import { createStatusMediaUrl, listActiveStatuses, publishStatus, publishTextStatus, type StatusUpdate } from "./src/lib/status";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -116,6 +116,8 @@ export default function App() {
   const [statuses, setStatuses] = useState<StatusUpdate[]>([]);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusNotice, setStatusNotice] = useState("");
+  const [statusText, setStatusText] = useState("");
+  const [showTextStatus, setShowTextStatus] = useState(false);
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
@@ -198,8 +200,28 @@ export default function App() {
     }
   };
 
+  const publishWrittenStatus = async () => {
+    if (!session?.user.id || statusBusy) return;
+    setStatusBusy(true);
+    setStatusNotice("");
+    try {
+      await publishTextStatus({ userId: session.user.id, text: statusText });
+      setStatusText("");
+      setShowTextStatus(false);
+      const rows = await listActiveStatuses();
+      setStatuses(rows);
+      setStatusNotice("Estado de texto publicado. Ficará disponível durante 24 horas.");
+    } catch (error) {
+      setStatusNotice(error instanceof Error ? error.message : "Não foi possível publicar o estado.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
+
   const openStatus = async (status: StatusUpdate) => {
     try {
+      if (status.media_type === "text") return;
+      if (!status.media_path) return;
       const url = await createStatusMediaUrl(status.media_path);
       await Linking.openURL(url);
     } catch (error) {
@@ -1131,11 +1153,31 @@ export default function App() {
             <View style={styles.content}>
               <View style={styles.groupHeader}>
                 <Text style={styles.heading}>Estados</Text>
-                <Pressable onPress={() => void publishNewStatus()} disabled={!session || statusBusy} style={[styles.mediaButton, statusBusy && styles.authButtonDisabled]}>
-                  <Text style={styles.mediaButtonText}>{statusBusy ? "A publicar..." : "+ Publicar"}</Text>
+                <Pressable onPress={() => { setShowTextStatus(false); void publishNewStatus(); }} disabled={!session || statusBusy} style={[styles.mediaButton, statusBusy && styles.authButtonDisabled]}>
+                  <Text style={styles.mediaButtonText}>{statusBusy ? "A publicar..." : "+ Foto/vídeo"}</Text>
                 </Pressable>
               </View>
-              <Text style={styles.settingDescription}>Partilha uma fotografia ou vídeo com os teus contactos. Os estados desaparecem após 24 horas.</Text>
+              <Text style={styles.settingDescription}>Partilha texto, fotografias ou vídeos. Os estados desaparecem após 24 horas.</Text>
+              {session && (
+                <View style={styles.groupComposer}>
+                  <Text style={styles.settingTitle}>Publicar um estado de texto</Text>
+                  <TextInput
+                    value={statusText}
+                    onChangeText={setStatusText}
+                    placeholder="O que queres partilhar?"
+                    placeholderTextColor="#82938B"
+                    style={[styles.search, { minHeight: 90, textAlignVertical: "top" }]}
+                    multiline
+                    maxLength={700}
+                  />
+                  <View style={styles.groupHeader}>
+                    <Text style={styles.languageNote}>{statusText.length}/700</Text>
+                    <Pressable onPress={() => void publishWrittenStatus()} disabled={statusBusy || !statusText.trim()} style={[styles.authButton, { paddingHorizontal: 18, paddingVertical: 10 }, (statusBusy || !statusText.trim()) && styles.authButtonDisabled]}>
+                      <Text style={styles.authButtonText}>{statusBusy ? "A publicar..." : "Publicar texto"}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
               {!!statusNotice && <Text style={styles.languageNote}>{statusNotice}</Text>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para ver e publicar estados.</Text>
@@ -1146,13 +1188,13 @@ export default function App() {
                   contentContainerStyle={styles.list}
                   ListEmptyComponent={<Text style={styles.empty}>Ainda não há estados ativos. Sê o primeiro a publicar!</Text>}
                   renderItem={({ item }) => (
-                    <Pressable style={styles.chatRow} onPress={() => void openStatus(item)}>
+                    <Pressable style={styles.chatRow} onPress={() => item.media_type === "text" ? setStatusNotice(item.caption) : void openStatus(item)}>
                       <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
-                        <Text style={styles.chatAvatarText}>{item.media_type === "video" ? "▶" : "●"}</Text>
+                        <Text style={styles.chatAvatarText}>{item.media_type === "video" ? "▶" : item.media_type === "text" ? "T" : "●"}</Text>
                       </View>
                       <View style={styles.chatCopy}>
                         <Text style={styles.chatName}>{item.user_id === session.user.id ? "O teu estado" : "Estado de um contacto"}</Text>
-                        <Text style={styles.message}>{item.media_type === "video" ? "Vídeo" : "Fotografia"} · {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
+                        <Text style={styles.message}>{item.media_type === "video" ? "Vídeo" : item.media_type === "text" ? item.caption : "Fotografia"} · {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
                         <Text style={styles.languageNote}>Expira: {new Date(item.expires_at).toLocaleString()}</Text>
                       </View>
                       <Text style={styles.navTextActive}>Abrir</Text>
