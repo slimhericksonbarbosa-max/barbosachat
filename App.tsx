@@ -666,10 +666,7 @@ export default function App() {
   };
 
   const startVoiceRecording = async () => {
-    if (!session?.user.id || !activeConversationId || Platform.OS === "web") {
-      if (Platform.OS === "web") setChatError("A gravação de voz está disponível na aplicação Android e iPhone.");
-      return;
-    }
+    if (!session?.user.id || !activeConversationId) return;
     try {
       setChatError("");
       const permission = await AudioModule.requestRecordingPermissionsAsync();
