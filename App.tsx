@@ -25,14 +25,16 @@ import {
   Linking,
 } from "react-native";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 type ChatMessage = {
   id: string;
@@ -139,6 +141,7 @@ export default function App() {
   }, [session?.user.id]);
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
     const openConversationFromNotification = (conversationId: unknown) => {
       if (typeof conversationId !== "string") return;
       setActiveConversationId(conversationId);
