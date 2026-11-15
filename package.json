@@ -24,7 +24,10 @@
     "expo-file-system": "~19.0.23",
     "expo-notifications": "~0.32.17",
     "expo-constants": "~18.0.13",
-    "expo-device": "~8.0.10"
+    "expo-device": "~8.0.10",
+    "react-dom": "19.1.0",
+    "react-native-web": "~0.21.0",
+    "@expo/metro-runtime": "~6.1.2"
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
