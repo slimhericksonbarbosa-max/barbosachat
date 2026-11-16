@@ -1155,6 +1155,9 @@ function AppContent() {
               </View>
             )}
           />
+          {!!translationNotice && (
+            <Text style={[styles.languageNote, { paddingHorizontal: 16, paddingVertical: 8 }]}>{translationNotice}</Text>
+          )}
 
           {session && (
             <View style={styles.mediaActions}>
