@@ -115,6 +115,49 @@ export async function listActiveStatuses(): Promise<StatusUpdate[]> {
   return (data ?? []) as StatusUpdate[];
 }
 
+export type StatusViewer = {
+  viewer_id: string;
+  viewed_at: string;
+  display_name: string;
+  username: string | null;
+};
+
+/** Records a single view per user and status. RLS verifies viewer identity. */
+export async function recordStatusView(statusId: string, viewerId: string): Promise<void> {
+  const { error } = await supabase
+    .from("status_views")
+    .upsert({ status_id: statusId, viewer_id: viewerId }, {
+      onConflict: "status_id,viewer_id",
+      ignoreDuplicates: true,
+    });
+  if (error) throw new Error(error.message);
+}
+
+/** Only the owner of the status can retrieve its viewer list (enforced by RLS). */
+export async function listStatusViewers(statusId: string): Promise<StatusViewer[]> {
+  const { data: views, error } = await supabase
+    .from("status_views")
+    .select("viewer_id, viewed_at")
+    .eq("status_id", statusId)
+    .order("viewed_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const rows = views ?? [];
+  if (!rows.length) return [];
+  const viewerIds = [...new Set(rows.map((row) => row.viewer_id))];
+  const { data: profiles, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, display_name, username")
+    .in("id", viewerIds);
+  if (profileError) throw new Error(profileError.message);
+  const profileById = new Map((profiles ?? []).map((profile) => [profile.id, profile]));
+  return rows.map((row) => ({
+    viewer_id: row.viewer_id,
+    viewed_at: row.viewed_at,
+    display_name: profileById.get(row.viewer_id)?.display_name || profileById.get(row.viewer_id)?.username || "Utilizador",
+    username: profileById.get(row.viewer_id)?.username ?? null,
+  }));
+}
+
 /** Returns a short-lived URL for an active status in the private bucket. */
 export async function createStatusMediaUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage
