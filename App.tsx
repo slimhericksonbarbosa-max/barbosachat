@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -15,6 +15,7 @@ import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import { createStatusMediaUrl, listActiveStatuses, publishStatus, publishTextStatus, type StatusUpdate } from "./src/lib/status";
+import { translateConversationMessage } from "./src/lib/translation";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -123,6 +124,9 @@ export default function App() {
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
   const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [languageNotice, setLanguageNotice] = useState("");
+  const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+  const [translationNotice, setTranslationNotice] = useState("");
+  const translatingMessageKeys = useRef(new Set<string>());
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -374,6 +378,31 @@ export default function App() {
     void loadPreferences();
     return () => { cancelled = true; };
   }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!translationEnabled || !session?.user.id || !activeConversationId || !activeConversation) return;
+    let cancelled = false;
+    const pending = activeConversation.messages.filter((message) =>
+      !message.mine && !message.mediaPath && message.text.trim().length > 0
+    );
+    for (const message of pending) {
+      const cacheKey = message.id + ":" + preferredLanguage;
+      if (translatedMessages[cacheKey] || translatingMessageKeys.current.has(cacheKey)) continue;
+      translatingMessageKeys.current.add(cacheKey);
+      void translateConversationMessage(activeConversationId, message.text)
+        .then((translatedText) => {
+          if (!cancelled) {
+            setTranslatedMessages((current) => ({ ...current, [cacheKey]: translatedText }));
+            setTranslationNotice("");
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) setTranslationNotice(error instanceof Error ? error.message : "Não foi possível traduzir esta mensagem.");
+        })
+        .finally(() => translatingMessageKeys.current.delete(cacheKey));
+    }
+    return () => { cancelled = true; };
+  }, [translationEnabled, session?.user.id, activeConversationId, activeConversation?.messages, preferredLanguage, translatedMessages]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -1059,7 +1088,14 @@ export default function App() {
                     </Text>
                   </Pressable>
                 ) : (
-                  <Text style={[styles.messageText, item.mine && styles.myMessageText]}>{item.text}</Text>
+                  <>
+                    <Text style={[styles.messageText, item.mine && styles.myMessageText]}>
+                      {translatedMessages[item.id + ":" + preferredLanguage] || item.text}
+                    </Text>
+                    {!!translatedMessages[item.id + ":" + preferredLanguage] && (
+                      <Text style={[styles.messageTime, { alignSelf: "flex-start" }]}>Tradução automática · Original: {item.text}</Text>
+                    )}
+                  </>
                 )}
                 <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
               </View>
@@ -1309,7 +1345,7 @@ export default function App() {
               <Text style={styles.heading}>Definições</Text>
               <View style={styles.settingCard}>
                 <Text style={styles.settingTitle}>Tradução automática</Text>
-                <Text style={styles.settingDescription}>Cada utilizador poderá escolher individualmente se pretende tradução automática ou manual.</Text>
+                <Text style={styles.settingDescription}>Quando ativada, as mensagens de texto recebidas serão traduzidas para o teu idioma. A mensagem original continua guardada. A tradução usa um serviço externo.</Text>
                 <Pressable
                   onPress={() => void saveTranslationPreference(!translationEnabled)}
                   style={[styles.toggle, translationEnabled && styles.toggleOn]}
@@ -1338,6 +1374,7 @@ export default function App() {
                 </View>
                 {!session && <Text style={styles.languageNote}>Inicia sessão para guardar a tua preferência.</Text>}
                 {!!languageNotice && <Text style={styles.languageNote}>{languageNotice}</Text>}
+                {!!translationNotice && <Text style={styles.languageNote}>{translationNotice}</Text>}
                 {preferenceLoading && <Text style={styles.languageNote}>A guardar preferência...</Text>}
               </View>
               {session && (
