@@ -159,6 +159,7 @@ function AppContent() {
   const [showTextStatus, setShowTextStatus] = useState(false);
   const [viewingStatus, setViewingStatus] = useState<StatusUpdate | null>(null);
   const [viewingStatusUrl, setViewingStatusUrl] = useState<string | null>(null);
+  const [statusProgress, setStatusProgress] = useState(0);
   const [statusViewers, setStatusViewers] = useState<StatusViewer[]>([]);
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(true);
   const [readReceiptsReady, setReadReceiptsReady] = useState(false);
@@ -284,6 +285,7 @@ function AppContent() {
   };
 
   const openStatus = async (status: StatusUpdate) => {
+    setStatusProgress(0);
     setViewingStatus(status);
     setStatusViewers([]);
     try {
@@ -335,13 +337,34 @@ function AppContent() {
 
   const showNextStatus = (direction: -1 | 1) => {
     if (!viewingStatus) return;
-    const group = statusGroups.find((item) => item.userId === viewingStatus.user_id);
-    if (!group) return;
-    const index = group.items.findIndex((item) => item.id === viewingStatus.id);
-    const next = group.items[index + direction];
+    const sequence = statusGroups.flatMap((group) => group.items);
+    const index = sequence.findIndex((item) => item.id === viewingStatus.id);
+    const next = sequence[index + direction];
     if (next) void openStatus(next);
-    else setViewingStatus(null);
+    else if (direction > 0) {
+      setViewingStatus(null);
+      setViewingStatusUrl(null);
+      setStatusProgress(0);
+    }
   };
+
+  useEffect(() => {
+    if (!viewingStatus) {
+      setStatusProgress(0);
+      return;
+    }
+    const duration = viewingStatus.media_type === "video" ? 15000 : 7000;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      setStatusProgress(progress);
+      if (progress >= 1) {
+        clearInterval(timer);
+        showNextStatus(1);
+      }
+    }, 80);
+    return () => clearInterval(timer);
+  }, [viewingStatus?.id, statusGroups]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -1592,6 +1615,17 @@ function AppContent() {
       )}
       <Modal visible={!!viewingStatus} animationType="fade" onRequestClose={() => setViewingStatus(null)}>
         <View style={styles.statusViewer}>
+          <View style={{ flexDirection: "row", gap: 4, paddingHorizontal: 14, paddingTop: 12 }}>
+            {(() => {
+              const sequence = statusGroups.flatMap((group) => group.items);
+              const currentIndex = sequence.findIndex((item) => item.id === viewingStatus?.id);
+              return sequence.filter((item, index) => index >= currentIndex).map((item, index) => (
+                <View key={item.id} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: "#64736C", overflow: "hidden" }}>
+                  <View style={{ height: 3, width: index === 0 ? `${statusProgress * 100}%` : "0%", backgroundColor: "#FFFFFF" }} />
+                </View>
+              ));
+            })()}
+          </View>
           <View style={styles.statusViewerTop}>
             <Text style={styles.statusViewerText}>{viewingStatus?.user_id === session?.user.id ? "O meu estado" : "Estado de um contacto"}</Text>
             <Pressable onPress={() => setViewingStatus(null)}><Text style={styles.statusViewerClose}>×</Text></Pressable>
