@@ -1218,7 +1218,7 @@ function AppContent() {
                 )}
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
                   <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
-                  {item.mine && <Text style={[styles.messageTime, item.read && { color: "#58B7E8" }, item.mine && styles.myMessageTime]}>{item.read ? "✓✓" : "✓"}</Text>}
+                  {item.mine && <Text style={[styles.messageTime, item.mine && styles.myMessageTime, item.read && { color: "#58B7E8" }]}>{item.read ? "✓✓" : "✓"}</Text>}
                 </View>
               </View>
             )}
@@ -1577,7 +1577,7 @@ function AppContent() {
             <View style={{ position: "absolute", bottom: 92, left: 20, right: 20, maxHeight: 110 }}>
               <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700", marginBottom: 5 }}>Visto por {statusViewers.length}</Text>
               <Text numberOfLines={3} style={{ color: "#FFFFFF", fontSize: 11 }}>
-                {statusViewers.map((viewer) => viewer.display_name).join(", ") || "Ainda ninguém visualizou este estado."}
+                {!readReceiptsEnabled ? "As confirmações de leitura estão desativadas." : statusViewers.map((viewer) => viewer.display_name).join(", ") || "Ainda ninguém visualizou este estado."}
               </Text>
             </View>
           )}
