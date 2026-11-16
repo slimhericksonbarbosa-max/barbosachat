@@ -280,6 +280,24 @@ function AppContent() {
     }
   };
 
+  useEffect(() => {
+    if (!viewingStatus || viewingStatus.user_id !== session?.user.id) return;
+    const channel = supabase
+      .channel("status-views:" + viewingStatus.id)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "status_views",
+        filter: "status_id=eq." + viewingStatus.id,
+      }, () => {
+        void listStatusViewers(viewingStatus.id)
+          .then(setStatusViewers)
+          .catch((error) => console.warn("Could not refresh status viewers:", error));
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [viewingStatus?.id, viewingStatus?.user_id, session?.user.id]);
+
   const statusGroups = useMemo(() => {
     const grouped = new Map<string, StatusUpdate[]>();
     for (const status of statuses) grouped.set(status.user_id, [...(grouped.get(status.user_id) ?? []), status]);
