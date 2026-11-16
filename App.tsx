@@ -161,6 +161,7 @@ function AppContent() {
   const [viewingStatusUrl, setViewingStatusUrl] = useState<string | null>(null);
   const [statusViewers, setStatusViewers] = useState<StatusViewer[]>([]);
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(true);
+  const [readReceiptsReady, setReadReceiptsReady] = useState(false);
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
@@ -271,7 +272,7 @@ function AppContent() {
       setViewingStatusUrl(status.media_path ? await createStatusMediaUrl(status.media_path) : null);
       if (status.user_id === session?.user.id) {
         setStatusViewers(await listStatusViewers(status.id));
-      } else if (session?.user.id && readReceiptsEnabled) {
+      } else if (session?.user.id && readReceiptsReady && readReceiptsEnabled) {
         await recordStatusView(status.id, session.user.id);
       }
     } catch (error) {
@@ -448,6 +449,7 @@ function AppContent() {
     let cancelled = false;
     const loadPreferences = async () => {
       setPreferenceLoading(true);
+      setReadReceiptsReady(false);
       const { data, error } = await supabase
         .from("profiles")
         .select("translation_mode, preferred_language, read_receipts_enabled")
@@ -457,8 +459,13 @@ function AppContent() {
         setTranslationEnabled(data.translation_mode === "automatic");
         setPreferredLanguage(data.preferred_language || "pt");
         setReadReceiptsEnabled(data.read_receipts_enabled !== false);
+      } else if (!cancelled) {
+        setReadReceiptsEnabled(false);
       }
-      if (!cancelled) setPreferenceLoading(false);
+      if (!cancelled) {
+        setReadReceiptsReady(true);
+        setPreferenceLoading(false);
+      }
     };
     void loadPreferences();
     return () => { cancelled = true; };
@@ -554,7 +561,7 @@ function AppContent() {
           ? { ...conversation, messages: [...conversation.messages, incoming], message: incoming.text, time: "Agora" }
           : conversation
       ));
-      if (readReceiptsEnabled) {
+      if (readReceiptsReady && readReceiptsEnabled) {
         void recordMessagesAsRead([stored.id], session.user.id)
           .catch((error) => console.warn("Could not record incoming message read:", error));
       }
@@ -565,7 +572,7 @@ function AppContent() {
       try {
         const rows = await listMessages(activeConversationId);
         if (cancelled) return;
-        if (readReceiptsEnabled) {
+        if (readReceiptsReady && readReceiptsEnabled) {
           void recordMessagesAsRead(rows.filter((row) => row.sender_id !== session.user.id).map((row) => row.id), session.user.id)
             .catch((error) => console.warn("Could not record message reads:", error));
         }
@@ -598,7 +605,7 @@ function AppContent() {
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [activeConversationId, session?.user.id, readReceiptsEnabled]);
+  }, [activeConversationId, session?.user.id, readReceiptsEnabled, readReceiptsReady]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -1513,7 +1520,7 @@ function AppContent() {
                   <Text style={styles.settingDescription}>Quando desativadas, os outros não verão quando leste as mensagens nem quem viu os teus estados. Também deixarás de enviar recibos de leitura.</Text>
                   <Pressable
                     onPress={() => void saveReadReceiptsPreference(!readReceiptsEnabled)}
-                    disabled={preferenceLoading}
+                    disabled={preferenceLoading || !readReceiptsReady}
                     style={[styles.toggle, readReceiptsEnabled && styles.toggleOn]}
                     accessibilityRole="switch"
                     accessibilityState={{ checked: readReceiptsEnabled }}
