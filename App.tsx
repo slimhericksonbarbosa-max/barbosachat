@@ -192,14 +192,32 @@ function AppContent() {
     const refreshStatuses = async () => {
       try {
         const rows = await listActiveStatuses();
-        if (!cancelled) setStatuses(rows);
+        if (!cancelled) setStatuses(rows.filter((status) => new Date(status.expires_at).getTime() > Date.now()));
       } catch (error) {
         if (!cancelled) setStatusNotice(error instanceof Error ? error.message : "Não foi possível carregar os estados.");
       }
     };
     void refreshStatuses();
-    return () => { cancelled = true; };
+    // Recheck expiration while the app remains open, and after it returns
+    // from the background (the first tick runs as soon as JS resumes).
+    const expiryRefresh = setInterval(() => {
+      setStatuses((current) => current.filter((status) => new Date(status.expires_at).getTime() > Date.now()));
+      void refreshStatuses();
+    }, 30 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(expiryRefresh);
+    };
   }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!viewingStatus) return;
+    if (new Date(viewingStatus.expires_at).getTime() <= Date.now()) {
+      setViewingStatus(null);
+      setViewingStatusUrl(null);
+      setStatuses((current) => current.filter((status) => status.id !== viewingStatus.id));
+    }
+  }, [viewingStatus, statuses]);
 
   const publishNewStatus = async () => {
     if (!session?.user.id || statusBusy) return;
@@ -307,7 +325,8 @@ function AppContent() {
 
   const statusGroups = useMemo(() => {
     const grouped = new Map<string, StatusUpdate[]>();
-    for (const status of statuses) grouped.set(status.user_id, [...(grouped.get(status.user_id) ?? []), status]);
+    const activeStatuses = statuses.filter((status) => new Date(status.expires_at).getTime() > Date.now());
+    for (const status of activeStatuses) grouped.set(status.user_id, [...(grouped.get(status.user_id) ?? []), status]);
     return Array.from(grouped.entries()).map(([userId, items]) => ({
       userId,
       items: items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
