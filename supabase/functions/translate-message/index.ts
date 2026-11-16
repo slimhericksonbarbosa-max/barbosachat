@@ -32,18 +32,34 @@ function splitIntoChunks(text: string, maxBytes = 450): string[] {
 }
 
 async function translateChunk(text: string, target: string): Promise<string> {
-  const params = new URLSearchParams({ q: text, langpair: `autodetect|${target}`, mt: "1" });
+  const params = new URLSearchParams({
+    q: text,
+    langpair: `autodetect|${target}`,
+    mt: "1",
+  });
   const response = await fetch(`https://api.mymemory.translated.net/get?${params.toString()}`, {
-    headers: { Accept: "application/json" },
+    method: "GET",
+    headers: { "Accept": "application/json" },
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error(`O serviço gratuito respondeu com o código ${response.status}.`);
+  if (!response.ok) {
+    throw new Error(`O serviço gratuito respondeu com o código ${response.status}.`);
+  }
   const result = await response.json();
   if (Number(result?.responseStatus) !== 200) {
-    throw new Error(typeof result?.responseDetails === "string" ? result.responseDetails : "Resposta inválida do serviço.");
+    const detail = typeof result?.responseDetails === "string" ? result.responseDetails : "Resposta inválida do serviço.";
+    // MyMemory reports this when autodetection finds the text is already
+    // in the requested language. In that case the correct translation is
+    // the original text, not a failed request.
+    if (detail.toUpperCase().includes("PLEASE SELECT TWO DISTINCT LANGUAGES")) {
+      return text;
+    }
+    throw new Error(detail);
   }
   const translated = result?.responseData?.translatedText;
-  if (typeof translated !== "string" || !translated.trim()) throw new Error("O serviço gratuito não devolveu uma tradução válida.");
+  if (typeof translated !== "string" || !translated.trim()) {
+    throw new Error("O serviço gratuito não devolveu uma tradução válida.");
+  }
   return translated;
 }
 
@@ -58,6 +74,7 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   if (!authorization || !supabaseUrl || !anonKey) return json({ error: "Sessão inválida." }, 401);
+
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -85,8 +102,9 @@ Deno.serve(async (req: Request) => {
   if (!["pt", "en", "es", "fr", "ar", "zh"].includes(target)) return json({ error: "Idioma de destino não suportado." }, 400);
 
   try {
+    const chunks = splitIntoChunks(messageText);
     const translatedChunks: string[] = [];
-    for (const chunk of splitIntoChunks(messageText)) translatedChunks.push(await translateChunk(chunk, target));
+    for (const chunk of chunks) translatedChunks.push(await translateChunk(chunk, target));
     return json({ translatedText: translatedChunks.join(""), targetLanguage: target, provider: "MyMemory" });
   } catch (error) {
     console.error("MyMemory translation failed", error);
