@@ -381,7 +381,6 @@ export default function App() {
 
   useEffect(() => {
     if (!translationEnabled || !session?.user.id || !activeConversationId || !activeConversation) return;
-    let cancelled = false;
     const pending = activeConversation.messages.filter((message) =>
       !message.mine && !message.mediaPath && message.text.trim().length > 0
     );
@@ -391,17 +390,14 @@ export default function App() {
       translatingMessageKeys.current.add(cacheKey);
       void translateConversationMessage(activeConversationId, message.text)
         .then((translatedText) => {
-          if (!cancelled) {
-            setTranslatedMessages((current) => ({ ...current, [cacheKey]: translatedText }));
-            setTranslationNotice("");
-          }
+          setTranslatedMessages((current) => ({ ...current, [cacheKey]: translatedText }));
+          setTranslationNotice("");
         })
         .catch((error) => {
-          if (!cancelled) setTranslationNotice(error instanceof Error ? error.message : "Não foi possível traduzir esta mensagem.");
+          setTranslationNotice(error instanceof Error ? error.message : "Não foi possível traduzir esta mensagem.");
         })
         .finally(() => translatingMessageKeys.current.delete(cacheKey));
     }
-    return () => { cancelled = true; };
   }, [translationEnabled, session?.user.id, activeConversationId, activeConversation?.messages, preferredLanguage, translatedMessages]);
 
   useEffect(() => {
