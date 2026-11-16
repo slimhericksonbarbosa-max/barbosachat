@@ -536,6 +536,10 @@ function AppContent() {
           ? { ...conversation, messages: [...conversation.messages, incoming], message: incoming.text, time: "Agora" }
           : conversation
       ));
+      if (readReceiptsEnabled) {
+        void recordMessagesAsRead([stored.id], session.user.id)
+          .catch((error) => console.warn("Could not record incoming message read:", error));
+      }
     });
     const loadHistory = async () => {
       setChatLoading(true);
@@ -543,6 +547,10 @@ function AppContent() {
       try {
         const rows = await listMessages(activeConversationId);
         if (cancelled) return;
+        if (readReceiptsEnabled) {
+          void recordMessagesAsRead(rows.filter((row) => row.sender_id !== session.user.id).map((row) => row.id), session.user.id)
+            .catch((error) => console.warn("Could not record message reads:", error));
+        }
         setConversations((current) => current.map((conversation) => conversation.id === activeConversationId
           ? (() => {
               const history = rows.map((row) => ({
@@ -550,6 +558,7 @@ function AppContent() {
                 text: row.body,
                 time: new Date(row.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
                 mine: row.sender_id === session.user.id,
+                read: row.read_at != null,
                 mediaPath: row.media_path || undefined,
                 mediaName: row.media_name || undefined,
                 mediaKind: row.message_type === "text" ? undefined : row.message_type,
@@ -571,7 +580,7 @@ function AppContent() {
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [activeConversationId, session?.user.id]);
+  }, [activeConversationId, session?.user.id, readReceiptsEnabled]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -1189,7 +1198,10 @@ function AppContent() {
                     )}
                   </>
                 )}
-                <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 5 }}>
+                  <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
+                  {item.mine && <Text style={[styles.messageTime, item.read && { color: "#58B7E8" }, item.mine && styles.myMessageTime]}>{item.read ? "✓✓" : "✓"}</Text>}
+                </View>
               </View>
             )}
           />
@@ -1479,6 +1491,23 @@ function AppContent() {
               </View>
               {session && (
                 <View style={styles.settingCard}>
+                  <Text style={styles.settingTitle}>Confirmações de leitura</Text>
+                  <Text style={styles.settingDescription}>Quando desativadas, os outros não verão quando leste as mensagens nem quem viu os teus estados. Também deixarás de enviar recibos de leitura.</Text>
+                  <Pressable
+                    onPress={() => void saveReadReceiptsPreference(!readReceiptsEnabled)}
+                    disabled={preferenceLoading}
+                    style={[styles.toggle, readReceiptsEnabled && styles.toggleOn]}
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: readReceiptsEnabled }}
+                  >
+                    <Text style={[styles.toggleText, readReceiptsEnabled && styles.toggleTextOn]}>
+                      {readReceiptsEnabled ? "Confirmações ativadas" : "Confirmações desativadas"}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+              {session && (
+                <View style={styles.settingCard}>
                   <Text style={styles.settingTitle}>Notificações</Text>
                   <Text style={styles.settingDescription}>
                     Recebe avisos quando alguém te envia uma mensagem, mesmo quando não estás a usar o Barbosachat.
@@ -1525,6 +1554,14 @@ function AppContent() {
             <Pressable onPress={() => void Linking.openURL(viewingStatusUrl)}><Text style={styles.statusViewerButton}>Reproduzir vídeo</Text></Pressable>
           ) : (
             <Text style={styles.statusViewerText}>A carregar estado...</Text>
+          )}
+          {viewingStatus?.user_id === session?.user.id && (
+            <View style={{ position: "absolute", bottom: 92, left: 20, right: 20, maxHeight: 110 }}>
+              <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700", marginBottom: 5 }}>Visto por {statusViewers.length}</Text>
+              <Text numberOfLines={3} style={{ color: "#FFFFFF", fontSize: 11 }}>
+                {statusViewers.map((viewer) => viewer.display_name).join(", ") || "Ainda ninguém visualizou este estado."}
+              </Text>
+            </View>
           )}
           <View style={{ position: "absolute", bottom: 42, left: 20, right: 20, flexDirection: "row", justifyContent: "space-between" }}>
             <Pressable onPress={() => showNextStatus(-1)}><Text style={styles.statusViewerButton}>Anterior</Text></Pressable>
