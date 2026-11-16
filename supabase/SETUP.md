@@ -6,9 +6,11 @@ O projeto Supabase Barbosachat já está criado e a estrutura de dados, as regra
 
 - Projeto Supabase: `Barbosachat`
 - Região: `eu-central-1`
-- Tabelas: `profiles`, `conversations`, `conversation_members`, `messages`, `push_tokens`
+- Tabelas: `profiles`, `conversations`, `conversation_members`, `messages`, `message_read_receipts`, `status_updates`, `status_views`, `push_tokens`
 - Row Level Security: ativado nas cinco tabelas da aplicação
-- Realtime: `messages` e `conversation_members` incluídas na publicação
+- Realtime: `messages`, `conversation_members`, `message_read_receipts` e `status_views` incluídas na publicação
+- Confirmações de leitura com RLS: cada utilizador regista apenas as próprias leituras; o remetente vê os recibos das mensagens que enviou e o autor vê os visitantes dos seus estados
+- Preferência individual `profiles.read_receipts_enabled` para desativar o envio e a consulta de recibos
 - Funções privilegiadas auxiliares: guardadas no schema privado
 - Acesso `anon` às tabelas da aplicação: revogado
 - Armazenamento: bucket privado `chat-media`, limite de 50 MB por ficheiro
