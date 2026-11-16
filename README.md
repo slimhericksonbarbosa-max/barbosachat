@@ -11,6 +11,8 @@ Aplicação de mensagens para Android e iPhone, construída com Expo e React Nat
 - Envio de mensagens persistentes e sincronização em tempo real quando o Supabase está configurado.
 - Criação de conversas individuais e grupos com seleção de participantes.
 - Indicador de mensagens não lidas e atualização da última mensagem.
+- Confirmações de leitura nas conversas, com vistos duplos em tempo real.
+- Lista de visualizações dos Status, disponível ao autor, com preferência individual de privacidade.
 - Preferência individual de tradução automática ou modo manual, guardada no perfil Supabase quando configurado.
 - Idioma inicial: Português; cada utilizador pode escolher o seu idioma preferido.
 - Envio de fotografias, vídeos, áudios e documentos para armazenamento privado da conversa (até 50 MB por ficheiro).
