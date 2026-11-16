@@ -380,8 +380,9 @@ export default function App() {
   }, [session?.user.id]);
 
   useEffect(() => {
-    if (!translationEnabled || !session?.user.id || !activeConversationId || !activeConversation) return;
-    const pending = activeConversation.messages.filter((message) =>
+    const currentConversation = conversations.find((item) => item.id === activeConversationId);
+    if (!translationEnabled || !session?.user.id || !activeConversationId || !currentConversation) return;
+    const pending = currentConversation.messages.filter((message) =>
       !message.mine && !message.mediaPath && message.text.trim().length > 0
     );
     for (const message of pending) {
@@ -398,7 +399,7 @@ export default function App() {
         })
         .finally(() => translatingMessageKeys.current.delete(cacheKey));
     }
-  }, [translationEnabled, session?.user.id, activeConversationId, activeConversation?.messages, preferredLanguage, translatedMessages]);
+  }, [translationEnabled, session?.user.id, activeConversationId, conversations, preferredLanguage, translatedMessages]);
 
   useEffect(() => {
     if (!session?.user.id) return;
