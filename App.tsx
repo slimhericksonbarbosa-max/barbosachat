@@ -33,6 +33,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Modal,
+  Image,
 } from "react-native";
 
 if (Platform.OS !== "web") {
@@ -119,6 +121,8 @@ export default function App() {
   const [statusNotice, setStatusNotice] = useState("");
   const [statusText, setStatusText] = useState("");
   const [showTextStatus, setShowTextStatus] = useState(false);
+  const [viewingStatus, setViewingStatus] = useState<StatusUpdate | null>(null);
+  const [viewingStatusUrl, setViewingStatusUrl] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
@@ -224,13 +228,31 @@ export default function App() {
 
   const openStatus = async (status: StatusUpdate) => {
     try {
-      if (status.media_type === "text") return;
-      if (!status.media_path) return;
-      const url = await createStatusMediaUrl(status.media_path);
-      await Linking.openURL(url);
+      setViewingStatus(status);
+      setViewingStatusUrl(status.media_path ? await createStatusMediaUrl(status.media_path) : null);
     } catch (error) {
+      setViewingStatus(null);
       setStatusNotice(error instanceof Error ? error.message : "Não foi possível abrir este estado.");
     }
+  };
+
+  const statusGroups = useMemo(() => {
+    const grouped = new Map<string, StatusUpdate[]>();
+    for (const status of statuses) grouped.set(status.user_id, [...(grouped.get(status.user_id) ?? []), status]);
+    return Array.from(grouped.entries()).map(([userId, items]) => ({
+      userId,
+      items: items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+    })).sort((a, b) => a.userId === session?.user.id ? -1 : b.userId === session?.user.id ? 1 : 0);
+  }, [statuses, session?.user.id]);
+
+  const showNextStatus = (direction: -1 | 1) => {
+    if (!viewingStatus) return;
+    const group = statusGroups.find((item) => item.userId === viewingStatus.user_id);
+    if (!group) return;
+    const index = group.items.findIndex((item) => item.id === viewingStatus.id);
+    const next = group.items[index + direction];
+    if (next) void openStatus(next);
+    else setViewingStatus(null);
   };
 
   useEffect(() => {
@@ -1190,7 +1212,28 @@ export default function App() {
                   <Text style={styles.mediaButtonText}>{statusBusy ? "A publicar..." : "+ Foto/vídeo"}</Text>
                 </Pressable>
               </View>
-              <Text style={styles.settingDescription}>Partilha texto, fotografias ou vídeos. Os estados desaparecem após 24 horas.</Text>
+              <Text style={styles.settingDescription}>Partilha momentos com os teus contactos. Os estados desaparecem após 24 horas.</Text>
+              {session && (
+                <View style={styles.statusStrip}>
+                  <Pressable style={styles.statusPerson} onPress={() => {
+                    const mine = statusGroups.find((group) => group.userId === session.user.id);
+                    if (mine?.items.length) void openStatus(mine.items[0]);
+                    else setStatusNotice("Publica o teu primeiro estado usando o campo abaixo.");
+                  }}>
+                    <View style={styles.myStatusAvatarWrap}>
+                      <View style={styles.myStatusAvatar}><Text style={styles.myStatusLetter}>{session.user.email?.charAt(0).toUpperCase() || "B"}</Text></View>
+                      <View style={styles.statusAdd}><Text style={styles.statusAddText}>+</Text></View>
+                    </View>
+                    <Text numberOfLines={1} style={styles.statusPersonName}>O meu estado</Text>
+                  </Pressable>
+                  {statusGroups.filter((group) => group.userId !== session.user.id).map((group) => (
+                    <Pressable key={group.userId} style={styles.statusPerson} onPress={() => void openStatus(group.items[0])}>
+                      <View style={styles.statusRing}><View style={styles.statusAvatar}><Text style={styles.statusAvatarLetter}>B</Text></View></View>
+                      <Text numberOfLines={1} style={styles.statusPersonName}>Contacto</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
               {session && (
                 <View style={styles.groupComposer}>
                   <Text style={styles.settingTitle}>Publicar um estado de texto</Text>
@@ -1214,26 +1257,10 @@ export default function App() {
               {!!statusNotice && <Text style={styles.languageNote}>{statusNotice}</Text>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para ver e publicar estados.</Text>
+              ) : statusGroups.length === 0 ? (
+                <Text style={styles.empty}>Ainda não há estados ativos. Sê o primeiro a partilhar um momento!</Text>
               ) : (
-                <FlatList
-                  data={statuses}
-                  keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.list}
-                  ListEmptyComponent={<Text style={styles.empty}>Ainda não há estados ativos. Sê o primeiro a publicar!</Text>}
-                  renderItem={({ item }) => (
-                    <Pressable style={styles.chatRow} onPress={() => item.media_type === "text" ? setStatusNotice(item.caption) : void openStatus(item)}>
-                      <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
-                        <Text style={styles.chatAvatarText}>{item.media_type === "video" ? "▶" : item.media_type === "text" ? "T" : "●"}</Text>
-                      </View>
-                      <View style={styles.chatCopy}>
-                        <Text style={styles.chatName}>{item.user_id === session.user.id ? "O teu estado" : "Estado de um contacto"}</Text>
-                        <Text style={styles.message}>{item.media_type === "video" ? "Vídeo" : item.media_type === "text" ? item.caption : "Fotografia"} · {new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
-                        <Text style={styles.languageNote}>Expira: {new Date(item.expires_at).toLocaleString()}</Text>
-                      </View>
-                      <Text style={styles.navTextActive}>Abrir</Text>
-                    </Pressable>
-                  )}
-                />
+                <Text style={styles.languageNote}>Toca num círculo para ver os estados desse contacto.</Text>
               )}
             </View>
           )}
@@ -1408,12 +1435,49 @@ export default function App() {
           </View>
         </>
       )}
+      <Modal visible={!!viewingStatus} animationType="fade" onRequestClose={() => setViewingStatus(null)}>
+        <View style={styles.statusViewer}>
+          <View style={styles.statusViewerTop}>
+            <Text style={styles.statusViewerText}>{viewingStatus?.user_id === session?.user.id ? "O meu estado" : "Estado de um contacto"}</Text>
+            <Pressable onPress={() => setViewingStatus(null)}><Text style={styles.statusViewerClose}>×</Text></Pressable>
+          </View>
+          {viewingStatus?.media_type === "text" ? (
+            <Text style={styles.statusViewerText}>{viewingStatus.caption}</Text>
+          ) : viewingStatus?.media_type === "image" && viewingStatusUrl ? (
+            <Image source={{ uri: viewingStatusUrl }} resizeMode="contain" style={{ width: "100%", height: "75%" }} />
+          ) : viewingStatus?.media_type === "video" && viewingStatusUrl ? (
+            <Pressable onPress={() => void Linking.openURL(viewingStatusUrl)}><Text style={styles.statusViewerButton}>Reproduzir vídeo</Text></Pressable>
+          ) : (
+            <Text style={styles.statusViewerText}>A carregar estado...</Text>
+          )}
+          <View style={{ position: "absolute", bottom: 42, left: 20, right: 20, flexDirection: "row", justifyContent: "space-between" }}>
+            <Pressable onPress={() => showNextStatus(-1)}><Text style={styles.statusViewerButton}>Anterior</Text></Pressable>
+            <Pressable onPress={() => showNextStatus(1)}><Text style={styles.statusViewerButton}>Seguinte</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#F6FBF8" },
+  statusStrip: { flexDirection: "row", paddingVertical: 18, gap: 16, borderBottomWidth: 1, borderBottomColor: "#E5EEE9", marginBottom: 12 },
+  statusPerson: { width: 68, alignItems: "center" },
+  statusRing: { width: 62, height: 62, borderRadius: 31, borderWidth: 2.5, borderColor: "#20B978", alignItems: "center", justifyContent: "center", padding: 3 },
+  statusAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: "#D9F3E8", alignItems: "center", justifyContent: "center" },
+  statusAvatarLetter: { color: "#0B6B4B", fontSize: 20, fontWeight: "800" },
+  myStatusAvatarWrap: { width: 62, height: 62, borderRadius: 31, backgroundColor: "#E4EAE6", alignItems: "center", justifyContent: "center", position: "relative" },
+  myStatusAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: "#0B6B4B", alignItems: "center", justifyContent: "center" },
+  myStatusLetter: { color: "#FFFFFF", fontSize: 20, fontWeight: "800" },
+  statusAdd: { position: "absolute", right: -1, bottom: -1, width: 23, height: 23, borderRadius: 12, backgroundColor: "#087F50", borderWidth: 2, borderColor: "#F6FBF8", alignItems: "center", justifyContent: "center" },
+  statusAddText: { color: "#FFFFFF", fontSize: 17, lineHeight: 20, fontWeight: "700" },
+  statusPersonName: { color: "#27352D", fontSize: 11, marginTop: 7, textAlign: "center" },
+  statusViewer: { flex: 1, backgroundColor: "#101814", justifyContent: "center", alignItems: "center", padding: 22 },
+  statusViewerTop: { position: "absolute", top: 50, left: 16, right: 16, zIndex: 2, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  statusViewerText: { color: "#FFFFFF", fontSize: 17, fontWeight: "600", textAlign: "center", lineHeight: 26 },
+  statusViewerClose: { color: "#FFFFFF", fontSize: 28, paddingHorizontal: 8 },
+  statusViewerButton: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", backgroundColor: "#0B6B4B", paddingHorizontal: 18, paddingVertical: 12, borderRadius: 20, overflow: "hidden" },
   authScreen: { justifyContent: "center", padding: 22 },
   authCard: { backgroundColor: "#FFFFFF", borderRadius: 24, padding: 24, borderWidth: 1, borderColor: "#E5EEE9", alignItems: "stretch" },
   authLogo: { width: 58, height: 58, borderRadius: 29, backgroundColor: "#0B6B4B", alignItems: "center", justifyContent: "center", alignSelf: "center", marginBottom: 14 },
