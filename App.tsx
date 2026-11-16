@@ -266,18 +266,24 @@ function AppContent() {
   };
 
   const openStatus = async (status: StatusUpdate) => {
+    setViewingStatus(status);
+    setStatusViewers([]);
     try {
-      setViewingStatus(status);
-      setStatusViewers([]);
       setViewingStatusUrl(status.media_path ? await createStatusMediaUrl(status.media_path) : null);
-      if (status.user_id === session?.user.id) {
-        setStatusViewers(await listStatusViewers(status.id));
-      } else if (session?.user.id && readReceiptsReady && readReceiptsEnabled) {
-        await recordStatusView(status.id, session.user.id);
-      }
     } catch (error) {
       setViewingStatus(null);
       setStatusNotice(error instanceof Error ? error.message : "Não foi possível abrir este estado.");
+      return;
+    }
+    if (status.user_id === session?.user.id) {
+      try {
+        setStatusViewers(await listStatusViewers(status.id));
+      } catch (error) {
+        setStatusNotice(error instanceof Error ? error.message : "Não foi possível carregar quem viu este estado.");
+      }
+    } else if (session?.user.id && readReceiptsReady && readReceiptsEnabled) {
+      void recordStatusView(status.id, session.user.id)
+        .catch((error) => console.warn("Could not record status view:", error));
     }
   };
 
