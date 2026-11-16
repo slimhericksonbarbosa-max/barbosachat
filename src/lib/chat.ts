@@ -14,6 +14,7 @@ export type StoredMessage = {
   media_path: string | null;
   media_name: string | null;
   media_content_type: string | null;
+  read_at?: string | null;
 };
 
 export type ConversationSummary = {
@@ -96,7 +97,49 @@ export async function listMessages(conversationId: string): Promise<StoredMessag
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
   throwIfError(error);
-  return (data ?? []) as StoredMessage[];
+  const messages = (data ?? []) as StoredMessage[];
+  const { data: authData } = await supabase.auth.getUser();
+  const ownIds = messages
+    .filter((message) => message.sender_id === authData.user?.id)
+    .map((message) => message.id);
+  if (ownIds.length) {
+    const receipts = await supabase
+      .from("message_read_receipts")
+      .select("message_id, read_at")
+      .in("message_id", ownIds);
+    throwIfError(receipts.error);
+    const readAtByMessage = new Map((receipts.data ?? []).map((row) => [row.message_id, row.read_at]));
+    for (const message of messages) message.read_at = readAtByMessage.get(message.id) ?? null;
+  }
+  return messages;
+}
+
+/** Records that the signed-in recipient opened incoming messages. */
+export async function recordMessagesAsRead(messageIds: string[], readerId: string): Promise<void> {
+  const uniqueIds = [...new Set(messageIds)].filter(Boolean);
+  if (!uniqueIds.length || !readerId) return;
+  const { error } = await supabase
+    .from("message_read_receipts")
+    .upsert(uniqueIds.map((message_id) => ({ message_id, reader_id: readerId })), {
+      onConflict: "message_id,reader_id",
+      ignoreDuplicates: true,
+    });
+  throwIfError(error);
+}
+
+/** Watches read receipts so senders can see when their messages are read. */
+export function subscribeToReadReceipts(onReceipt: (messageId: string) => void): RealtimeChannel {
+  return supabase
+    .channel("message-read-receipts")
+    .on("postgres_changes", {
+      event: "INSERT",
+      schema: "public",
+      table: "message_read_receipts",
+    }, (payload) => {
+      const row = payload.new as { message_id?: string };
+      if (row.message_id) onReceipt(row.message_id);
+    })
+    .subscribe();
 }
 
 /** Persists a text message. RLS verifies membership and sender identity. */
