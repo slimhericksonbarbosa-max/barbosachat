@@ -1619,9 +1619,9 @@ function AppContent() {
             {(() => {
               const sequence = statusGroups.flatMap((group) => group.items);
               const currentIndex = sequence.findIndex((item) => item.id === viewingStatus?.id);
-              return sequence.filter((item, index) => index >= currentIndex).map((item, index) => (
+              return sequence.map((item, index) => (
                 <View key={item.id} style={{ flex: 1, height: 3, borderRadius: 2, backgroundColor: "#64736C", overflow: "hidden" }}>
-                  <View style={{ height: 3, width: index === 0 ? `${statusProgress * 100}%` : "0%", backgroundColor: "#FFFFFF" }} />
+                  <View style={{ height: 3, width: index < currentIndex ? "100%" : index === currentIndex ? `${statusProgress * 100}%` : "0%", backgroundColor: "#FFFFFF" }} />
                 </View>
               ));
             })()}
