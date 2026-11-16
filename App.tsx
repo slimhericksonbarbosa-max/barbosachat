@@ -12,9 +12,9 @@ import {
 } from "expo-audio";
 import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
-import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, type PendingConversationInvite } from "./src/lib/chat";
+import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, recordMessagesAsRead, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, subscribeToReadReceipts, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
-import { createStatusMediaUrl, listActiveStatuses, publishStatus, publishTextStatus, type StatusUpdate } from "./src/lib/status";
+import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
 import * as Notifications from "expo-notifications";
 import {
@@ -56,6 +56,7 @@ type ChatMessage = {
   mediaPath?: string;
   mediaName?: string;
   mediaKind?: "image" | "video" | "audio" | "file";
+  read?: boolean;
 };
 
 type Conversation = {
@@ -158,6 +159,8 @@ function AppContent() {
   const [showTextStatus, setShowTextStatus] = useState(false);
   const [viewingStatus, setViewingStatus] = useState<StatusUpdate | null>(null);
   const [viewingStatusUrl, setViewingStatusUrl] = useState<string | null>(null);
+  const [statusViewers, setStatusViewers] = useState<StatusViewer[]>([]);
+  const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(true);
   const [search, setSearch] = useState("");
   const [translationEnabled, setTranslationEnabled] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("pt");
@@ -264,7 +267,13 @@ function AppContent() {
   const openStatus = async (status: StatusUpdate) => {
     try {
       setViewingStatus(status);
+      setStatusViewers([]);
       setViewingStatusUrl(status.media_path ? await createStatusMediaUrl(status.media_path) : null);
+      if (status.user_id === session?.user.id) {
+        setStatusViewers(await listStatusViewers(status.id));
+      } else if (session?.user.id && readReceiptsEnabled) {
+        await recordStatusView(status.id, session.user.id);
+      }
     } catch (error) {
       setViewingStatus(null);
       setStatusNotice(error instanceof Error ? error.message : "Não foi possível abrir este estado.");
@@ -423,12 +432,13 @@ function AppContent() {
       setPreferenceLoading(true);
       const { data, error } = await supabase
         .from("profiles")
-        .select("translation_mode, preferred_language")
+        .select("translation_mode, preferred_language, read_receipts_enabled")
         .eq("id", session.user.id)
         .maybeSingle();
       if (!cancelled && !error && data) {
         setTranslationEnabled(data.translation_mode === "automatic");
         setPreferredLanguage(data.preferred_language || "pt");
+        setReadReceiptsEnabled(data.read_receipts_enabled !== false);
       }
       if (!cancelled) setPreferenceLoading(false);
     };
@@ -563,6 +573,17 @@ function AppContent() {
     };
   }, [activeConversationId, session?.user.id]);
 
+  useEffect(() => {
+    if (!session?.user.id) return;
+    const channel = subscribeToReadReceipts((messageId) => {
+      setConversations((current) => current.map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) => message.id === messageId ? { ...message, read: true } : message),
+      })));
+    });
+    return () => { void supabase.removeChannel(channel); };
+  }, [session?.user.id]);
+
   const requestPasswordReset = async () => {
     const cleanEmail = email.trim().toLowerCase();
     setAuthError("");
@@ -696,6 +717,23 @@ function AppContent() {
       }
     }
     await supabase.auth.signOut();
+  };
+
+  const saveReadReceiptsPreference = async (enabled: boolean) => {
+    if (!session?.user.id) return;
+    const previous = readReceiptsEnabled;
+    setReadReceiptsEnabled(enabled);
+    setPreferenceLoading(true);
+    const { error } = await supabase.from("profiles")
+      .update({ read_receipts_enabled: enabled, updated_at: new Date().toISOString() })
+      .eq("id", session.user.id);
+    if (error) {
+      setReadReceiptsEnabled(previous);
+      setLanguageNotice("Não foi possível guardar a confirmação de leitura. Tenta novamente.");
+    } else {
+      setLanguageNotice(enabled ? "Confirmações de leitura ativadas." : "Confirmações de leitura desativadas.");
+    }
+    setPreferenceLoading(false);
   };
 
   const saveTranslationPreference = async (enabled: boolean) => {
