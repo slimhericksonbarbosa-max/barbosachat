@@ -102,7 +102,42 @@ const INITIAL_CONVERSATIONS: Conversation[] = [
   },
 ];
 
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: string | null }
+> {
+  state = { error: null as string | null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return {
+      error: error instanceof Error ? error.message : "Erro inesperado ao abrir o Barbosachat.",
+    };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error("Barbosachat render error:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#F6FBF8", justifyContent: "center", padding: 24 }}>
+          <Text style={{ color: "#0B6B4B", fontSize: 26, fontWeight: "800", marginBottom: 12 }}>Barbosachat</Text>
+          <Text style={{ color: "#B42318", fontSize: 16, fontWeight: "700", marginBottom: 8 }}>Não foi possível abrir o aplicativo.</Text>
+          <Text selectable style={{ color: "#27352D", fontSize: 13, lineHeight: 20 }}>{this.state.error}</Text>
+          <Text style={{ color: "#718078", fontSize: 12, marginTop: 18 }}>Envia esta mensagem ao suporte para corrigirmos o problema.</Text>
+        </SafeAreaView>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  return <AppErrorBoundary><AppContent /></AppErrorBoundary>;
+}
+
+function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
