@@ -16,7 +16,7 @@ import { createConversation, listContacts, listMyConversations, listMessages, li
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
-import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
+import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, listFavoriteMessages, setMessageFavorite, type FavoriteMessageRecord, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -186,6 +186,9 @@ function AppContent() {
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
   const [conversationPins, setConversationPins] = useState<MessagePin[]>([]);
   const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
+  const [favoriteRecords, setFavoriteRecords] = useState<FavoriteMessageRecord[]>([]);
+  const [mediaPreviewUrls, setMediaPreviewUrls] = useState<Record<string, string>>({});
+  const [viewingChatImage, setViewingChatImage] = useState<{ url: string; name: string } | null>(null);
   const [myHighlights, setMyHighlights] = useState<StatusHighlight[]>([]);
   const [highlightTitle, setHighlightTitle] = useState("");
   const [interactionNotice, setInteractionNotice] = useState("");
@@ -1080,6 +1083,10 @@ function AppContent() {
         audioPlayer.play();
         return;
       }
+      if (item.mediaKind === "image") {
+        setViewingChatImage({ url, name: item.mediaName || "Fotografia" });
+        return;
+      }
       await Linking.openURL(url);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Não foi possível abrir o ficheiro.");
@@ -1088,7 +1095,38 @@ function AppContent() {
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
 
-  const favoriteMessages = useMemo(() => conversations.flatMap((conversation) => conversation.messages.filter((message) => favoriteMessageIds.includes(message.id)).map((message) => ({ ...message, conversationId: conversation.id, conversationName: conversation.name }))), [conversations, favoriteMessageIds]);
+  const favoriteMessages = useMemo(() => favoriteRecords.map((record) => {
+    const conversation = conversations.find((item) => item.id === record.conversation_id);
+    return {
+      id: record.id,
+      text: record.body,
+      time: new Date(record.created_at).toLocaleString(),
+      mine: record.sender_id === session?.user.id,
+      mediaPath: record.media_path || undefined,
+      mediaName: record.media_name || undefined,
+      mediaKind: record.message_type === "text" ? undefined : record.message_type,
+      conversationId: record.conversation_id,
+      conversationName: conversation?.name || "Conversa",
+    };
+  }), [favoriteRecords, conversations, session?.user.id]);
+
+  useEffect(() => {
+    const imageMessages = (activeConversation?.messages ?? []).filter((message) => message.mediaPath && (message.mediaKind === "image" || message.mediaKind === "video"));
+    let cancelled = false;
+    void Promise.all(imageMessages.map(async (message) => {
+      if (!message.mediaPath || mediaPreviewUrls[message.id]) return null;
+      try { return [message.id, await createChatMediaUrl(message.mediaPath)] as const; }
+      catch { return null; }
+    })).then((entries) => {
+      if (cancelled) return;
+      setMediaPreviewUrls((current) => {
+        const next = { ...current };
+        for (const entry of entries) if (entry) next[entry[0]] = entry[1];
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [activeConversation?.id, activeConversation?.messages]);
 
   const filteredConversations = useMemo(
     () => conversations.filter((item) =>
@@ -1334,12 +1372,21 @@ function AppContent() {
             renderItem={({ item }) => (
               <View style={[styles.messageBubble, item.mine ? styles.myBubble : styles.theirBubble]}>
                 {item.mediaPath ? (
-                  <Pressable onPress={() => void openMedia(item)}>
-                    <Text style={[styles.messageText, item.mine && styles.myMessageText]}>
-                      {item.mediaKind === "image" ? "📷 Fotografia" : item.mediaKind === "video" ? "🎬 Vídeo" : item.mediaKind === "audio" ? "🎵 Áudio" : "📎 Ficheiro"}
-                      {"\n"}{item.mediaName || item.text}
-                      {"\n"}{item.mediaKind === "audio" ? "Toque para ouvir" : "Toque para abrir"}
-                    </Text>
+                  <Pressable onPress={() => void openMedia(item)} style={{ minWidth: 190 }}>
+                    {(item.mediaKind === "image" || item.mediaKind === "video") && mediaPreviewUrls[item.id] ? (
+                      <View>
+                        <Image source={{ uri: mediaPreviewUrls[item.id] }} resizeMode="cover" style={{ width: 220, height: 180, borderRadius: 10, backgroundColor: "#DCE7E0" }} />
+                        {item.mediaKind === "video" && <Text style={{ color: item.mine ? "#FFFFFF" : "#0B6B4B", fontWeight: "800", marginTop: 5 }}>▶ Reproduzir vídeo</Text>}
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 }}>
+                        <Text style={{ fontSize: 25 }}>{item.mediaKind === "audio" ? "🎵" : "📄"}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.messageText, item.mine && styles.myMessageText]}>{item.mediaName || item.text}</Text>
+                          <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.mediaKind === "audio" ? "▶ Toque para ouvir" : "Toque para abrir ficheiro"}</Text>
+                        </View>
+                      </View>
+                    )}
                   </Pressable>
                 ) : (
                   <>
@@ -1557,11 +1604,29 @@ function AppContent() {
               <Text style={styles.heading}>Mensagens favoritas</Text>
               <FlatList data={favoriteMessages} keyExtractor={(item) => item.id} contentContainerStyle={styles.list}
                 ListEmptyComponent={<Text style={styles.empty}>Ainda não guardaste mensagens favoritas.</Text>}
-                renderItem={({ item }) => <Pressable style={styles.settingCard} onPress={() => { setActiveConversationId(item.conversationId); setTab("Conversas"); }}>
-                  <Text style={styles.chatName}>{item.conversationName}</Text>
-                  <Text style={styles.message}>{item.text}</Text>
-                  <Text style={styles.languageNote}>{item.time} · Toca para abrir a conversa</Text>
-                </Pressable>} />
+                renderItem={({ item }) => <View style={[styles.settingCard, { marginBottom: 10 }]}>
+                  <Pressable onPress={() => { setActiveConversationId(item.conversationId); setTab("Conversas"); }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                      <Text style={styles.chatName}>{item.conversationName}</Text>
+                      <Text style={{ color: "#D6A52D", fontSize: 18 }}>★</Text>
+                    </View>
+                    {item.mediaKind === "image" ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
+                        <Text style={{ fontSize: 26 }}>🖼️</Text><Text style={styles.message}>Fotografia · {item.mediaName || "Imagem"}</Text>
+                      </View>
+                    ) : item.mediaKind === "video" ? (
+                      <Text style={styles.message}>▶ Vídeo · {item.mediaName || "Vídeo"}</Text>
+                    ) : item.mediaKind === "audio" ? (
+                      <Text style={styles.message}>🎵 Mensagem de voz · {item.mediaName || "Áudio"}</Text>
+                    ) : item.mediaKind === "file" ? (
+                      <Text style={styles.message}>📎 Documento · {item.mediaName || item.text}</Text>
+                    ) : <Text style={styles.message}>{item.text}</Text>}
+                    <Text style={styles.languageNote}>{item.time} · Toca para abrir a conversa</Text>
+                  </Pressable>
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
+                    <Pressable onPress={() => void toggleMessageFavorite(item.id)}><Text style={{ color: "#B42318", fontWeight: "700", fontSize: 12 }}>Remover dos favoritos</Text></Pressable>
+                  </View>
+                </View>} />
             </View>
           )}
 
@@ -1752,6 +1817,15 @@ function AppContent() {
           </View>
         </>
       )}
+      <Modal visible={!!viewingChatImage} animationType="fade" onRequestClose={() => setViewingChatImage(null)}>
+        <View style={{ flex: 1, backgroundColor: "#07110C", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ position: "absolute", top: Platform.OS === "ios" ? 54 : 24, left: 18, right: 18, zIndex: 2, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text numberOfLines={1} style={{ color: "#FFFFFF", flex: 1, fontWeight: "700" }}>{viewingChatImage?.name}</Text>
+            <Pressable onPress={() => setViewingChatImage(null)}><Text style={{ color: "#FFFFFF", fontSize: 32, paddingHorizontal: 8 }}>×</Text></Pressable>
+          </View>
+          {!!viewingChatImage?.url && <Image source={{ uri: viewingChatImage.url }} resizeMode="contain" style={{ width: "100%", height: "82%" }} />}
+        </View>
+      </Modal>
       <Modal visible={!!viewingHighlightItem} animationType="fade" onRequestClose={() => { setViewingHighlightItem(null); setViewingHighlightUrl(null); }}>
         <View style={styles.statusViewer}>
           <View style={styles.statusViewerTop}>
