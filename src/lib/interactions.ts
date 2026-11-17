@@ -96,3 +96,31 @@ export async function setStatusHighlightCover(highlightId: string, itemId: strin
 export async function deleteStatusHighlight(highlightId: string): Promise<void> {
   const { error } = await supabase.from("status_highlights").delete().eq("id", highlightId); fail(error);
 }
+
+
+export type FavoriteMessageRecord = {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  message_type: "text" | "image" | "video" | "audio" | "file";
+  created_at: string;
+  media_path: string | null;
+  media_name: string | null;
+  media_content_type: string | null;
+  favorited_at: string;
+};
+
+export async function listFavoriteMessages(userId: string): Promise<FavoriteMessageRecord[]> {
+  const { data, error } = await supabase.from("message_favorites")
+    .select("created_at,messages!inner(id,conversation_id,sender_id,body,message_type,created_at,media_path,media_name,media_content_type,deleted_at)")
+    .eq("user_id", userId)
+    .is("messages.deleted_at", null)
+    .order("created_at", { ascending: false });
+  fail(error);
+  return (data ?? []).flatMap((row: any) => {
+    const message = Array.isArray(row.messages) ? row.messages[0] : row.messages;
+    if (!message) return [];
+    return [{ ...message, favorited_at: row.created_at }] as FavoriteMessageRecord[];
+  });
+}
