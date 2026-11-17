@@ -18,6 +18,7 @@ import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishSta
 import { translateConversationMessage } from "./src/lib/translation";
 import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, listFavoriteMessages, setMessageFavorite, type FavoriteMessageRecord, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
+import { useVideoPlayer, VideoView } from "expo-video";
 import {
   registerCurrentDeviceForPush,
   unregisterCurrentDeviceFromPush,
@@ -180,6 +181,8 @@ function AppContent() {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(audioRecorder);
   const audioPlayer = useAudioPlayer(null);
+  const videoPlayer = useVideoPlayer(null);
+  const [viewingChatVideo, setViewingChatVideo] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingConversationInvite[]>([]);
@@ -1109,6 +1112,12 @@ function AppContent() {
         setViewingChatImage({ url, name: item.mediaName || "Fotografia" });
         return;
       }
+      if (item.mediaKind === "video") {
+        videoPlayer.replace(url);
+        videoPlayer.play();
+        setViewingChatVideo(item.mediaName || "Vídeo");
+        return;
+      }
       await Linking.openURL(url);
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Não foi possível abrir o ficheiro.");
@@ -1839,6 +1848,15 @@ function AppContent() {
           </View>
         </>
       )}
+      <Modal visible={!!viewingChatVideo} animationType="fade" onRequestClose={() => { videoPlayer.pause(); setViewingChatVideo(null); }}>
+        <View style={{ flex: 1, backgroundColor: "#07110C", justifyContent: "center", alignItems: "center" }}>
+          <View style={{ position: "absolute", top: Platform.OS === "ios" ? 54 : 24, left: 18, right: 18, zIndex: 2, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text numberOfLines={1} style={{ color: "#FFFFFF", flex: 1, fontWeight: "700" }}>{viewingChatVideo}</Text>
+            <Pressable onPress={() => { videoPlayer.pause(); setViewingChatVideo(null); }}><Text style={{ color: "#FFFFFF", fontSize: 32, paddingHorizontal: 8 }}>×</Text></Pressable>
+          </View>
+          {!!viewingChatVideo && <VideoView player={videoPlayer} style={{ width: "100%", height: "70%" }} nativeControls allowsFullscreen allowsPictureInPicture contentFit="contain" />}
+        </View>
+      </Modal>
       <Modal visible={!!viewingChatImage} animationType="fade" onRequestClose={() => setViewingChatImage(null)}>
         <View style={{ flex: 1, backgroundColor: "#07110C", justifyContent: "center", alignItems: "center" }}>
           <View style={{ position: "absolute", top: Platform.OS === "ios" ? 54 : 24, left: 18, right: 18, zIndex: 2, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
