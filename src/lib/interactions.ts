@@ -49,7 +49,7 @@ function mapHighlights(rows: any[]): StatusHighlight[] {
 }
 export async function listMyStatusHighlights(userId: string): Promise<StatusHighlight[]> {
   const { data, error } = await supabase.from("status_highlights")
-    .select("id,user_id,title,cover_status_id,cover_item_id,created_at,status_highlight_items(id,status_id,added_at,media_path,media_type,caption,status_created_at)")
+    .select("id,user_id,title,cover_status_id,cover_item_id,created_at,status_highlight_items!status_highlight_items_highlight_id_fkey(id,status_id,added_at,media_path,media_type,caption,status_created_at)")
     .eq("user_id", userId).order("created_at", { ascending: true });
   fail(error); return mapHighlights(data ?? []);
 }
