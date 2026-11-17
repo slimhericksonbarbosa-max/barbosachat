@@ -16,7 +16,7 @@ import { createConversation, listContacts, listMyConversations, listMessages, li
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
-import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
+import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -1526,7 +1526,7 @@ function AppContent() {
                             <Text numberOfLines={2} style={{ color: "#0B6B4B", fontWeight: "700", fontSize: 12 }}>{item.media_type === "image" ? "📷 Fotografia" : item.media_type === "video" ? "🎬 Vídeo" : "📝 Texto"}</Text>
                             <Text numberOfLines={2} style={{ color: "#526158", fontSize: 10, marginTop: 4 }}>{item.caption || "Estado guardado"}</Text>
                           </Pressable>
-                          <Pressable onPress={() => void setStatusHighlightCover(highlight.id, item.status_id).then(refreshHighlights)}><Text style={{ color: "#0B6B4B", fontSize: 10, marginTop: 5 }}>Definir capa</Text></Pressable>
+                          <Pressable onPress={() => void setStatusHighlightCover(highlight.id, item.id).then(refreshHighlights)}><Text style={{ color: "#0B6B4B", fontSize: 10, marginTop: 5 }}>Definir capa</Text></Pressable>
                           <Pressable onPress={() => void removeHighlightItem(item)}><Text style={{ color: "#B42318", fontSize: 10, marginTop: 4 }}>Remover</Text></Pressable>
                         </View>
                       ))}
@@ -1752,6 +1752,26 @@ function AppContent() {
           </View>
         </>
       )}
+      <Modal visible={!!viewingHighlightItem} animationType="fade" onRequestClose={() => { setViewingHighlightItem(null); setViewingHighlightUrl(null); }}>
+        <View style={styles.statusViewer}>
+          <View style={styles.statusViewerTop}>
+            <Text style={styles.statusViewerText}>Destaque do perfil</Text>
+            <Pressable onPress={() => { setViewingHighlightItem(null); setViewingHighlightUrl(null); }}><Text style={styles.statusViewerClose}>×</Text></Pressable>
+          </View>
+          {viewingHighlightItem?.media_type === "text" ? (
+            <Text style={styles.statusViewerText}>{viewingHighlightItem.caption}</Text>
+          ) : viewingHighlightItem?.media_type === "image" && viewingHighlightUrl ? (
+            <Image source={{ uri: viewingHighlightUrl }} resizeMode="contain" style={{ width: "100%", height: "75%" }} />
+          ) : viewingHighlightItem?.media_type === "video" && viewingHighlightUrl ? (
+            <Pressable onPress={() => void Linking.openURL(viewingHighlightUrl)}><Text style={styles.statusViewerButton}>Reproduzir vídeo</Text></Pressable>
+          ) : (
+            <Text style={styles.statusViewerText}>A carregar destaque...</Text>
+          )}
+          {!!viewingHighlightItem?.caption && viewingHighlightItem.media_type !== "text" && (
+            <Text style={[styles.statusViewerText, { fontSize: 14 }]}>{viewingHighlightItem.caption}</Text>
+          )}
+        </View>
+      </Modal>
       <Modal visible={!!viewingStatus} animationType="fade" onRequestClose={() => setViewingStatus(null)}>
         <View style={styles.statusViewer}>
           <View style={{ flexDirection: "row", gap: 4, paddingHorizontal: 14, paddingTop: 12 }}>
