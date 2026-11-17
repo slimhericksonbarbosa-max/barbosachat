@@ -174,8 +174,18 @@ export async function deleteStatus(statusId: string, mediaPath: string): Promise
     .delete()
     .eq("id", statusId);
   if (error) throw new Error(error.message);
-  const { error: storageError } = await supabase.storage
-    .from("status-media")
-    .remove([mediaPath]);
-  if (storageError) throw new Error(storageError.message);
+  // A saved highlight owns a durable reference to this media. Keep the
+  // private object while any highlight snapshot still uses it.
+  const { data: savedItems, error: lookupError } = await supabase
+    .from("status_highlight_items")
+    .select("id")
+    .eq("media_path", mediaPath)
+    .limit(1);
+  if (lookupError) throw new Error(lookupError.message);
+  if (!savedItems?.length) {
+    const { error: storageError } = await supabase.storage
+      .from("status-media")
+      .remove([mediaPath]);
+    if (storageError) throw new Error(storageError.message);
+  }
 }
