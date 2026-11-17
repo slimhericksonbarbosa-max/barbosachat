@@ -234,9 +234,26 @@ function AppContent() {
   }, [viewingStatus, statuses]);
 
   useEffect(() => {
-    if (!session?.user.id) { setFavoriteMessageIds([]); setMyHighlights([]); return; }
-    void listFavoriteMessageIds(session.user.id).then(setFavoriteMessageIds).catch((error) => setChatError(error.message));
-    void listMyStatusHighlights(session.user.id).then(setMyHighlights).catch((error) => setStatusNotice(error.message));
+    if (!session?.user.id) {
+      setFavoriteMessageIds([]);
+      setFavoriteRecords([]);
+      setMyHighlights([]);
+      return;
+    }
+    let cancelled = false;
+    void Promise.all([
+      listFavoriteMessageIds(session.user.id),
+      listFavoriteMessages(session.user.id),
+      listMyStatusHighlights(session.user.id),
+    ]).then(([ids, records, highlights]) => {
+      if (cancelled) return;
+      setFavoriteMessageIds(ids);
+      setFavoriteRecords(records);
+      setMyHighlights(highlights);
+    }).catch((error) => {
+      if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os favoritos.");
+    });
+    return () => { cancelled = true; };
   }, [session?.user.id]);
 
   useEffect(() => {
@@ -262,7 +279,12 @@ function AppContent() {
     const favorite = favoriteMessageIds.includes(messageId);
     try {
       await setMessageFavorite(messageId, session.user.id, !favorite);
-      setFavoriteMessageIds((current) => favorite ? current.filter((id) => id !== messageId) : [...current, messageId]);
+      const [ids, records] = await Promise.all([
+        listFavoriteMessageIds(session.user.id),
+        listFavoriteMessages(session.user.id),
+      ]);
+      setFavoriteMessageIds(ids);
+      setFavoriteRecords(records);
     } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível atualizar os favoritos."); }
   };
 
