@@ -1654,6 +1654,19 @@ function AppContent() {
                     ) : <Text style={styles.message}>{item.text}</Text>}
                     <Text style={styles.languageNote}>{item.time} · Toca para abrir a conversa</Text>
                   </Pressable>
+                  {!!item.mediaPath && (
+                    <Pressable
+                      onPress={() => void openMedia({
+                        id: item.id, text: item.text, time: item.time, mine: item.mine,
+                        mediaPath: item.mediaPath, mediaName: item.mediaName, mediaKind: item.mediaKind,
+                      })}
+                      style={{ marginTop: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "#EAF3EE", alignSelf: "flex-start" }}
+                    >
+                      <Text style={{ color: "#0B6B4B", fontWeight: "800", fontSize: 12 }}>
+                        {item.mediaKind === "image" ? "Ver fotografia" : item.mediaKind === "video" ? "▶ Reproduzir vídeo" : item.mediaKind === "audio" ? "▶ Ouvir áudio" : "Abrir documento"}
+                      </Text>
+                    </Pressable>
+                  )}
                   <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
                     <Pressable onPress={() => void toggleMessageFavorite(item.id)}><Text style={{ color: "#B42318", fontWeight: "700", fontSize: 12 }}>Remover dos favoritos</Text></Pressable>
                   </View>
