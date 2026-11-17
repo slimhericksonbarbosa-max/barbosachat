@@ -16,6 +16,7 @@ import { createConversation, listContacts, listMyConversations, listMessages, li
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
+import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, type MessagePin, type StatusHighlight } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -183,6 +184,11 @@ function AppContent() {
   const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingConversationInvite[]>([]);
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
+  const [conversationPins, setConversationPins] = useState<MessagePin[]>([]);
+  const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
+  const [myHighlights, setMyHighlights] = useState<StatusHighlight[]>([]);
+  const [highlightTitle, setHighlightTitle] = useState("");
+  const [interactionNotice, setInteractionNotice] = useState("");
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -219,6 +225,50 @@ function AppContent() {
       setStatuses((current) => current.filter((status) => status.id !== viewingStatus.id));
     }
   }, [viewingStatus, statuses]);
+
+  useEffect(() => {
+    if (!session?.user.id) { setFavoriteMessageIds([]); setMyHighlights([]); return; }
+    void listFavoriteMessageIds(session.user.id).then(setFavoriteMessageIds).catch((error) => setChatError(error.message));
+    void listMyStatusHighlights(session.user.id).then(setMyHighlights).catch((error) => setStatusNotice(error.message));
+  }, [session?.user.id]);
+
+  useEffect(() => {
+    if (!activeConversationId || !session?.user.id) { setConversationPins([]); return; }
+    let cancelled = false;
+    void listConversationPins(activeConversationId).then((rows) => { if (!cancelled) setConversationPins(rows); })
+      .catch((error) => { if (!cancelled) setChatError(error.message); });
+    return () => { cancelled = true; };
+  }, [activeConversationId, session?.user.id]);
+
+  const toggleMessagePin = async (messageId: string) => {
+    if (!session?.user.id || !activeConversationId) return;
+    const existing = conversationPins.find((pin) => pin.message_id === messageId);
+    try {
+      if (existing) await unpinMessage(existing.id);
+      else await pinMessage(activeConversationId, messageId, session.user.id);
+      setConversationPins(await listConversationPins(activeConversationId));
+    } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível fixar a mensagem."); }
+  };
+
+  const toggleMessageFavorite = async (messageId: string) => {
+    if (!session?.user.id) return;
+    const favorite = favoriteMessageIds.includes(messageId);
+    try {
+      await setMessageFavorite(messageId, session.user.id, !favorite);
+      setFavoriteMessageIds((current) => favorite ? current.filter((id) => id !== messageId) : [...current, messageId]);
+    } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível atualizar os favoritos."); }
+  };
+
+  const saveOwnStatusesAsHighlight = async () => {
+    if (!session?.user.id) return;
+    const ownIds = statuses.filter((status) => status.user_id === session.user.id).map((status) => status.id);
+    try {
+      await createStatusHighlight(session.user.id, highlightTitle || "Momentos", ownIds);
+      setHighlightTitle("");
+      setMyHighlights(await listMyStatusHighlights(session.user.id));
+      setStatusNotice("Destaque guardado no teu perfil. Os estados selecionados ficam preservados nos destaques.");
+    } catch (error) { setStatusNotice(error instanceof Error ? error.message : "Não foi possível criar o destaque."); }
+  };
 
   const publishNewStatus = async () => {
     if (!session?.user.id || statusBusy) return;
@@ -1246,6 +1296,10 @@ function AppContent() {
 
           {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
           {chatLoading && <Text style={styles.languageNote}>A carregar mensagens...</Text>}
+          {conversationPins.length > 0 && (() => {
+            const pinned = activeConversation.messages.find((message) => message.id === conversationPins[0].message_id);
+            return <View style={{ marginHorizontal: 14, marginTop: 8, padding: 10, borderRadius: 12, backgroundColor: "#EAF3EE" }}><Text style={{ color: "#0B6B4B", fontSize: 11, fontWeight: "800" }}>📌 MENSAGEM FIXADA</Text><Text numberOfLines={2} style={{ color: "#24352B", fontSize: 13 }}>{pinned?.text || "Mensagem fixada nesta conversa"}</Text></View>;
+          })()}
           <FlatList
             data={activeConversation.messages}
             keyExtractor={(item) => item.id}
@@ -1275,6 +1329,10 @@ function AppContent() {
                   <Text style={[styles.messageTime, item.mine && styles.myMessageTime]}>{item.time}</Text>
                   {item.mine && <Text style={[styles.messageTime, item.mine && styles.myMessageTime, item.read && { color: "#58B7E8" }]}>{item.read ? "✓✓" : "✓"}</Text>}
                 </View>
+                {session && <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 14, marginTop: 3 }}>
+                  <Pressable onPress={() => void toggleMessagePin(item.id)}><Text style={{ color: "#DCEAE2", fontSize: 11 }}>{conversationPins.some((pin) => pin.message_id === item.id) ? "📌 Desafixar" : "📌 Fixar"}</Text></Pressable>
+                  <Pressable onPress={() => void toggleMessageFavorite(item.id)}><Text style={{ color: "#DCEAE2", fontSize: 11 }}>{favoriteMessageIds.includes(item.id) ? "★ Favorita" : "☆ Favoritar"}</Text></Pressable>
+                </View>}
               </View>
             )}
           />
@@ -1416,6 +1474,15 @@ function AppContent() {
                 </View>
               )}
               {!!statusNotice && <Text style={styles.languageNote}>{statusNotice}</Text>}
+              {session && <View style={styles.groupComposer}>
+                <Text style={styles.settingTitle}>Destaques do perfil</Text>
+                <Text style={styles.languageNote}>Guarda os teus estados atuais num destaque permanente, mesmo depois das 24 horas.</Text>
+                <TextInput value={highlightTitle} onChangeText={setHighlightTitle} placeholder="Nome do destaque (ex.: Viagens)" placeholderTextColor="#82938B" style={styles.search} maxLength={40} />
+                <Pressable onPress={() => void saveOwnStatusesAsHighlight()} disabled={!statuses.some((status) => status.user_id === session.user.id)} style={[styles.authButton, !statuses.some((status) => status.user_id === session.user.id) && styles.authButtonDisabled]}>
+                  <Text style={styles.authButtonText}>＋ Guardar estados nos destaques</Text>
+                </Pressable>
+                {myHighlights.map((highlight) => <Text key={highlight.id} style={{ color: "#0B6B4B", fontWeight: "700", paddingTop: 8 }}>◎ {highlight.title} · {highlight.items?.length || 0} estados</Text>)}
+              </View>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para ver e publicar estados.</Text>
               ) : statusGroups.length === 0 ? (
