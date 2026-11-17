@@ -152,7 +152,7 @@ function AppContent() {
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [tab, setTab] = useState<"Conversas" | "Estados" | "Contactos" | "Definições">("Conversas");
+  const [tab, setTab] = useState<"Conversas" | "Estados" | "Favoritos" | "Contactos" | "Definições">("Conversas");
   const [statuses, setStatuses] = useState<StatusUpdate[]>([]);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusNotice, setStatusNotice] = useState("");
@@ -1064,6 +1064,8 @@ function AppContent() {
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
 
+  const favoriteMessages = useMemo(() => conversations.flatMap((conversation) => conversation.messages.filter((message) => favoriteMessageIds.includes(message.id)).map((message) => ({ ...message, conversationId: conversation.id, conversationName: conversation.name }))), [conversations, favoriteMessageIds]);
+
   const filteredConversations = useMemo(
     () => conversations.filter((item) =>
       (item.name + " " + item.message).toLowerCase().includes(search.toLowerCase())
@@ -1493,6 +1495,19 @@ function AppContent() {
             </View>
           )}
 
+          {tab === "Favoritos" && (
+            <View style={styles.content}>
+              <Text style={styles.heading}>Mensagens favoritas</Text>
+              <FlatList data={favoriteMessages} keyExtractor={(item) => item.id} contentContainerStyle={styles.list}
+                ListEmptyComponent={<Text style={styles.empty}>Ainda não guardaste mensagens favoritas.</Text>}
+                renderItem={({ item }) => <Pressable style={styles.settingCard} onPress={() => { setActiveConversationId(item.conversationId); setTab("Conversas"); }}>
+                  <Text style={styles.chatName}>{item.conversationName}</Text>
+                  <Text style={styles.message}>{item.text}</Text>
+                  <Text style={styles.languageNote}>{item.time} · Toca para abrir a conversa</Text>
+                </Pressable>} />
+            </View>
+          )}
+
           {tab === "Contactos" && (
             <View style={styles.content}>
               <View style={styles.groupHeader}>
@@ -1672,7 +1687,7 @@ function AppContent() {
           )}
 
           <View style={styles.bottomNav}>
-            {(["Conversas", "Estados", "Contactos", "Definições"] as const).map((item) => (
+            {(["Conversas", "Estados", "Favoritos", "Contactos", "Definições"] as const).map((item) => (
               <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
                 <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
               </Pressable>
