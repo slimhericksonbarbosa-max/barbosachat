@@ -16,7 +16,7 @@ import { createConversation, listContacts, listMyConversations, listMessages, li
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
-import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, type MessagePin, type StatusHighlight } from "./src/lib/interactions";
+import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
 import {
   registerCurrentDeviceForPush,
@@ -189,6 +189,10 @@ function AppContent() {
   const [myHighlights, setMyHighlights] = useState<StatusHighlight[]>([]);
   const [highlightTitle, setHighlightTitle] = useState("");
   const [interactionNotice, setInteractionNotice] = useState("");
+  const [editingHighlightId, setEditingHighlightId] = useState<string | null>(null);
+  const [editingHighlightTitle, setEditingHighlightTitle] = useState("");
+  const [viewingHighlightItem, setViewingHighlightItem] = useState<StatusHighlightItem | null>(null);
+  const [viewingHighlightUrl, setViewingHighlightUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -263,13 +267,33 @@ function AppContent() {
     if (!session?.user.id) return;
     const ownIds = statuses.filter((status) => status.user_id === session.user.id).map((status) => status.id);
     try {
-      await createStatusHighlight(session.user.id, highlightTitle || "Momentos", ownIds);
+      const ownStatuses = statuses.filter((status) => status.user_id === session.user.id);
+      await createStatusHighlight(session.user.id, highlightTitle || "Momentos", ownStatuses);
       setHighlightTitle("");
       setMyHighlights(await listMyStatusHighlights(session.user.id));
       setStatusNotice("Destaque guardado no teu perfil. Os estados selecionados ficam preservados nos destaques.");
     } catch (error) { setStatusNotice(error instanceof Error ? error.message : "Não foi possível criar o destaque."); }
   };
 
+  const refreshHighlights = async () => {
+    if (session?.user.id) setMyHighlights(await listMyStatusHighlights(session.user.id));
+  };
+  const openHighlightItem = async (item: StatusHighlightItem) => {
+    setViewingHighlightItem(item);
+    setViewingHighlightUrl(null);
+    if (item.media_path) {
+      try { setViewingHighlightUrl(await createStatusMediaUrl(item.media_path)); }
+      catch (error) { setStatusNotice(error instanceof Error ? error.message : "Não foi possível abrir o destaque."); }
+    }
+  };
+  const removeHighlightItem = async (item: StatusHighlightItem) => {
+    try { await removeStatusFromHighlight(item.id); await refreshHighlights(); }
+    catch (error) { setStatusNotice(error instanceof Error ? error.message : "Não foi possível remover o estado."); }
+  };
+  const saveHighlightTitle = async (highlightId: string) => {
+    try { await renameStatusHighlight(highlightId, editingHighlightTitle); setEditingHighlightId(null); setEditingHighlightTitle(""); await refreshHighlights(); }
+    catch (error) { setStatusNotice(error instanceof Error ? error.message : "Não foi possível alterar o nome."); }
+  };
   const publishNewStatus = async () => {
     if (!session?.user.id || statusBusy) return;
     setStatusBusy(true);
@@ -1483,7 +1507,40 @@ function AppContent() {
                 <Pressable onPress={() => void saveOwnStatusesAsHighlight()} disabled={!statuses.some((status) => status.user_id === session.user.id)} style={[styles.authButton, !statuses.some((status) => status.user_id === session.user.id) && styles.authButtonDisabled]}>
                   <Text style={styles.authButtonText}>＋ Guardar estados nos destaques</Text>
                 </Pressable>
-                {myHighlights.map((highlight) => <Text key={highlight.id} style={{ color: "#0B6B4B", fontWeight: "700", paddingTop: 8 }}>◎ {highlight.title} · {highlight.items?.length || 0} estados</Text>)}
+                {myHighlights.map((highlight) => (
+                  <View key={highlight.id} style={{ marginTop: 12, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: "#DCE7E0", backgroundColor: "#F8FBF9" }}>
+                    <View style={styles.groupHeader}>
+                      {editingHighlightId === highlight.id ? (
+                        <TextInput value={editingHighlightTitle} onChangeText={setEditingHighlightTitle} maxLength={40} style={[styles.search, { flex: 1 }]} placeholder="Nome do destaque" />
+                      ) : <Text style={styles.settingTitle}>◎ {highlight.title} · {highlight.items.length}</Text>}
+                      {editingHighlightId === highlight.id ? (
+                        <Pressable onPress={() => void saveHighlightTitle(highlight.id)}><Text style={styles.mediaButtonText}>Guardar</Text></Pressable>
+                      ) : (
+                        <Pressable onPress={() => { setEditingHighlightId(highlight.id); setEditingHighlightTitle(highlight.title); }}><Text style={styles.mediaButtonText}>Editar nome</Text></Pressable>
+                      )}
+                    </View>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {highlight.items.map((item) => (
+                        <View key={item.id} style={{ width: 92, padding: 7, borderRadius: 10, backgroundColor: "#EAF3EE" }}>
+                          <Pressable onPress={() => void openHighlightItem(item)}>
+                            <Text numberOfLines={2} style={{ color: "#0B6B4B", fontWeight: "700", fontSize: 12 }}>{item.media_type === "image" ? "📷 Fotografia" : item.media_type === "video" ? "🎬 Vídeo" : "📝 Texto"}</Text>
+                            <Text numberOfLines={2} style={{ color: "#526158", fontSize: 10, marginTop: 4 }}>{item.caption || "Estado guardado"}</Text>
+                          </Pressable>
+                          <Pressable onPress={() => void setStatusHighlightCover(highlight.id, item.status_id).then(refreshHighlights)}><Text style={{ color: "#0B6B4B", fontSize: 10, marginTop: 5 }}>Definir capa</Text></Pressable>
+                          <Pressable onPress={() => void removeHighlightItem(item)}><Text style={{ color: "#B42318", fontSize: 10, marginTop: 4 }}>Remover</Text></Pressable>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={{ flexDirection: "row", gap: 14, marginTop: 10 }}>
+                      <Pressable onPress={() => {
+                        const next = statuses.find((status) => status.user_id === session.user.id && !highlight.items.some((item) => item.status_id === status.id));
+                        if (next) void addStatusToHighlight(highlight.id, next).then(refreshHighlights).catch((error) => setStatusNotice(error.message));
+                        else setStatusNotice("Não há novos estados ativos para adicionar.");
+                      }}><Text style={styles.mediaButtonText}>＋ Adicionar estado ativo</Text></Pressable>
+                      <Pressable onPress={() => void deleteStatusHighlight(highlight.id).then(refreshHighlights).catch((error) => setStatusNotice(error.message))}><Text style={{ color: "#B42318", fontSize: 12, fontWeight: "700" }}>Apagar destaque</Text></Pressable>
+                    </View>
+                  </View>
+                ))}
               </View>}
               {!session ? (
                 <Text style={styles.empty}>Inicia sessão para ver e publicar estados.</Text>
