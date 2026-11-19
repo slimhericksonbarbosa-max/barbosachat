@@ -91,12 +91,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const [{ data: profile, error: profileError }, { data: membership, error: memberError }] = await Promise.all([
-    userClient.from("profiles").select("translation_mode, preferred_language").eq("id", authData.user.id).maybeSingle(),
+    userClient.from("profiles").select("preferred_language").eq("id", authData.user.id).maybeSingle(),
     userClient.from("conversation_members").select("conversation_id").eq("conversation_id", conversationId).eq("user_id", authData.user.id).maybeSingle(),
   ]);
   if (profileError || memberError) return json({ error: "Não foi possível validar a conversa." }, 403);
-  if (!membership) return json({ error: "Não tens acesso a esta conversa." }, 403);
-  if (profile?.translation_mode !== "automatic") return json({ error: "Ativa a tradução automática nas definições." }, 403);
+  if (!membership || !profile) return json({ error: "Não tens acesso a esta conversa." }, 403);
 
   const target = typeof profile.preferred_language === "string" ? profile.preferred_language : "pt";
   if (!["pt", "en", "es", "fr", "ar", "zh"].includes(target)) return json({ error: "Idioma de destino não suportado." }, 400);

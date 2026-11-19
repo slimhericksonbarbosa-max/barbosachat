@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
@@ -171,6 +171,7 @@ function AppContent() {
   const [preferenceLoading, setPreferenceLoading] = useState(false);
   const [languageNotice, setLanguageNotice] = useState("");
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
+  const [translatingMessages, setTranslatingMessages] = useState<Record<string, boolean>>({});
   const [translationNotice, setTranslationNotice] = useState("");
   const translatingMessageKeys = useRef(new Set<string>());
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
@@ -621,27 +622,36 @@ function AppContent() {
     return () => { cancelled = true; };
   }, [session?.user.id]);
 
+  const requestTranslation = useCallback(async (messageId: string, messageText: string) => {
+    if (!session?.user.id || !activeConversationId) return;
+    const cacheKey = messageId + ":" + preferredLanguage;
+    if (translatedMessages[cacheKey] || translatingMessageKeys.current.has(cacheKey)) return;
+    translatingMessageKeys.current.add(cacheKey);
+    setTranslatingMessages((current) => ({ ...current, [cacheKey]: true }));
+    setTranslationNotice("");
+    try {
+      const translatedText = await translateConversationMessage(activeConversationId, messageText);
+      setTranslatedMessages((current) => ({ ...current, [cacheKey]: translatedText }));
+    } catch (error) {
+      setTranslationNotice(error instanceof Error ? error.message : "Não foi possível traduzir esta mensagem.");
+    } finally {
+      translatingMessageKeys.current.delete(cacheKey);
+      setTranslatingMessages((current) => {
+        const next = { ...current };
+        delete next[cacheKey];
+        return next;
+      });
+    }
+  }, [session?.user.id, activeConversationId, preferredLanguage, translatedMessages]);
+
   useEffect(() => {
     const currentConversation = conversations.find((item) => item.id === activeConversationId);
     if (!translationEnabled || !session?.user.id || !activeConversationId || !currentConversation) return;
     const pending = currentConversation.messages.filter((message) =>
       !message.mine && !message.mediaPath && message.text.trim().length > 0
     );
-    for (const message of pending) {
-      const cacheKey = message.id + ":" + preferredLanguage;
-      if (translatedMessages[cacheKey] || translatingMessageKeys.current.has(cacheKey)) continue;
-      translatingMessageKeys.current.add(cacheKey);
-      void translateConversationMessage(activeConversationId, message.text)
-        .then((translatedText) => {
-          setTranslatedMessages((current) => ({ ...current, [cacheKey]: translatedText }));
-          setTranslationNotice("");
-        })
-        .catch((error) => {
-          setTranslationNotice(error instanceof Error ? error.message : "Não foi possível traduzir esta mensagem.");
-        })
-        .finally(() => translatingMessageKeys.current.delete(cacheKey));
-    }
-  }, [translationEnabled, session?.user.id, activeConversationId, conversations, preferredLanguage, translatedMessages]);
+    for (const message of pending) void requestTranslation(message.id, message.text);
+  }, [translationEnabled, session?.user.id, activeConversationId, conversations, requestTranslation]);
 
   useEffect(() => {
     if (!session?.user.id) return;
@@ -1425,7 +1435,18 @@ function AppContent() {
                       {translatedMessages[item.id + ":" + preferredLanguage] || item.text}
                     </Text>
                     {!!translatedMessages[item.id + ":" + preferredLanguage] && (
-                      <Text style={[styles.messageTime, { alignSelf: "flex-start" }]}>Tradução automática · Original: {item.text}</Text>
+                      <Text style={[styles.messageTime, { alignSelf: "flex-start" }]}>Tradução · Original: {item.text}</Text>
+                    )}
+                    {session && !item.mine && !translationEnabled && !translatedMessages[item.id + ":" + preferredLanguage] && (
+                      <Pressable
+                        onPress={() => void requestTranslation(item.id, item.text)}
+                        disabled={!!translatingMessages[item.id + ":" + preferredLanguage]}
+                        style={{ alignSelf: "flex-start", paddingVertical: 5 }}
+                      >
+                        <Text style={{ color: "#0B6B4B", fontSize: 11, fontWeight: "800" }}>
+                          {translatingMessages[item.id + ":" + preferredLanguage] ? "A traduzir..." : "Traduzir"}
+                        </Text>
+                      </Pressable>
                     )}
                   </>
                 )}
@@ -1778,7 +1799,7 @@ function AppContent() {
               <Text style={styles.heading}>Definições</Text>
               <View style={styles.settingCard}>
                 <Text style={styles.settingTitle}>Tradução automática</Text>
-                <Text style={styles.settingDescription}>Quando ativada, as mensagens de texto recebidas serão traduzidas para o teu idioma. A mensagem original continua guardada. A tradução usa um serviço externo.</Text>
+                <Text style={styles.settingDescription}>No modo manual, toca em “Traduzir” em cada mensagem recebida. No modo automático, as mensagens de texto são traduzidas sem precisares de tocar. A mensagem original continua guardada; a tradução usa um serviço externo.</Text>
                 <Pressable
                   onPress={() => void saveTranslationPreference(!translationEnabled)}
                   style={[styles.toggle, translationEnabled && styles.toggleOn]}
