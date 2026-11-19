@@ -333,6 +333,7 @@ function AppContent() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         allowsEditing: false,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
         quality: 0.85,
       });
       if (result.canceled || !result.assets?.[0]) return;
@@ -1047,6 +1048,7 @@ function AppContent() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images", "videos"],
         allowsEditing: false,
+        preferredAssetRepresentationMode: ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
         quality: 0.8,
         videoMaxDuration: 120,
       });
