@@ -1799,7 +1799,7 @@ function AppContent() {
               <Text style={styles.heading}>Definições</Text>
               <View style={styles.settingCard}>
                 <Text style={styles.settingTitle}>Tradução automática</Text>
-                <Text style={styles.settingDescription}>Quando ativada, as mensagens de texto recebidas serão traduzidas para o teu idioma. A mensagem original continua guardada. A tradução usa um serviço externo.</Text>
+                <Text style={styles.settingDescription}>No modo manual, toca em “Traduzir” em cada mensagem recebida. No modo automático, as mensagens de texto são traduzidas sem precisares de tocar. A mensagem original continua guardada; a tradução usa um serviço externo.</Text>
                 <Pressable
                   onPress={() => void saveTranslationPreference(!translationEnabled)}
                   style={[styles.toggle, translationEnabled && styles.toggleOn]}
