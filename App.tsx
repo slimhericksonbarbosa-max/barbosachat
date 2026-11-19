@@ -623,7 +623,7 @@ function AppContent() {
   }, [session?.user.id]);
 
   const requestTranslation = useCallback(async (messageId: string, messageText: string) => {
-    if (!activeConversationId) return;
+    if (!session?.user.id || !activeConversationId) return;
     const cacheKey = messageId + ":" + preferredLanguage;
     if (translatedMessages[cacheKey] || translatingMessageKeys.current.has(cacheKey)) return;
     translatingMessageKeys.current.add(cacheKey);
@@ -642,7 +642,7 @@ function AppContent() {
         return next;
       });
     }
-  }, [activeConversationId, preferredLanguage, translatedMessages]);
+  }, [session?.user.id, activeConversationId, preferredLanguage, translatedMessages]);
 
   useEffect(() => {
     const currentConversation = conversations.find((item) => item.id === activeConversationId);
@@ -1437,7 +1437,7 @@ function AppContent() {
                     {!!translatedMessages[item.id + ":" + preferredLanguage] && (
                       <Text style={[styles.messageTime, { alignSelf: "flex-start" }]}>Tradução · Original: {item.text}</Text>
                     )}
-                    {!item.mine && !translationEnabled && !translatedMessages[item.id + ":" + preferredLanguage] && (
+                    {session && !item.mine && !translationEnabled && !translatedMessages[item.id + ":" + preferredLanguage] && (
                       <Pressable
                         onPress={() => void requestTranslation(item.id, item.text)}
                         disabled={!!translatingMessages[item.id + ":" + preferredLanguage]}
