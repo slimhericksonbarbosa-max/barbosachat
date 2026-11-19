@@ -179,7 +179,23 @@ function AppContent() {
   const [draft, setDraft] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const voiceRecordingMimeType = useMemo(() => {
+    if (Platform.OS !== "web") return "audio/mp4";
+    if (typeof MediaRecorder !== "undefined" && typeof MediaRecorder.isTypeSupported === "function") {
+      const supported = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"]
+        .find((mimeType) => MediaRecorder.isTypeSupported(mimeType));
+      if (supported) return supported;
+    }
+    return "audio/webm";
+  }, []);
+  const audioRecorderOptions = useMemo(() => ({
+    ...RecordingPresets.HIGH_QUALITY,
+    web: {
+      ...RecordingPresets.HIGH_QUALITY.web,
+      mimeType: voiceRecordingMimeType,
+    },
+  }), [voiceRecordingMimeType]);
+  const audioRecorder = useAudioRecorder(audioRecorderOptions);
   const recorderState = useAudioRecorderState(audioRecorder);
   const audioPlayer = useAudioPlayer(null);
   const videoPlayer = useVideoPlayer(null);
@@ -1105,7 +1121,10 @@ function AppContent() {
       await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false });
       const recordingUri = audioRecorder.uri;
       if (!recordingUri) throw new Error("A gravação não foi guardada. Tenta novamente.");
-      await sendPickedFile(recordingUri, "mensagem-de-voz.m4a", "audio/mp4", "audio");
+      const extension = voiceRecordingMimeType.includes("webm")
+        ? "webm"
+        : Platform.OS === "web" ? "mp4" : "m4a";
+      await sendPickedFile(recordingUri, `mensagem-de-voz.${extension}`, voiceRecordingMimeType, "audio");
     } catch (error) {
       setChatError(error instanceof Error ? error.message : "Não foi possível enviar a mensagem de voz.");
     }
