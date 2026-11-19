@@ -71,9 +71,10 @@ export async function listMyConversations(userId: string): Promise<ConversationS
   throwIfError(otherMembers.error);
 
   const otherUserIds = [...new Set((otherMembers.data ?? []).map((row) => row.user_id))];
-  const publicProfiles = otherUserIds.length
-    ? await supabase.from("public_profiles").select("id, display_name, username").in("id", otherUserIds)
-    : { data: [], error: null };
+  const publicProfiles = await supabase
+    .from("public_profiles")
+    .select("id, display_name, username")
+    .in("id", otherUserIds);
   throwIfError(publicProfiles.error);
 
   const profileById = new Map((publicProfiles.data ?? []).map((profile) => [profile.id, profile]));
