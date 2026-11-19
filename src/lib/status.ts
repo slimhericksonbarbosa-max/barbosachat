@@ -145,7 +145,7 @@ export async function listStatusViewers(statusId: string): Promise<StatusViewer[
   if (!rows.length) return [];
   const viewerIds = [...new Set(rows.map((row) => row.viewer_id))];
   const { data: profiles, error: profileError } = await supabase
-    .from("profiles")
+    .from("public_profiles")
     .select("id, display_name, username")
     .in("id", viewerIds);
   if (profileError) throw new Error(profileError.message);

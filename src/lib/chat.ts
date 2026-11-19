@@ -65,14 +65,22 @@ export async function listMyConversations(userId: string): Promise<ConversationS
 
   const otherMembers = await supabase
     .from("conversation_members")
-    .select("conversation_id, profiles(display_name, username)")
+    .select("conversation_id, user_id")
     .in("conversation_id", ids)
     .neq("user_id", userId);
   throwIfError(otherMembers.error);
 
+  const otherUserIds = [...new Set((otherMembers.data ?? []).map((row) => row.user_id))];
+  const publicProfiles = await supabase
+    .from("public_profiles")
+    .select("id, display_name, username")
+    .in("id", otherUserIds);
+  throwIfError(publicProfiles.error);
+
+  const profileById = new Map((publicProfiles.data ?? []).map((profile) => [profile.id, profile]));
   const otherMemberByConversation = new Map<string, { display_name: string; username: string | null }>();
   for (const row of otherMembers.data ?? []) {
-    const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    const profile = profileById.get(row.user_id);
     if (profile && !otherMemberByConversation.has(row.conversation_id)) {
       otherMemberByConversation.set(row.conversation_id, {
         display_name: profile.display_name || "",
@@ -246,7 +254,7 @@ export type ContactProfile = {
 /** Lists public profile fields, excluding the current user. */
 export async function listContacts(currentUserId: string): Promise<ContactProfile[]> {
   const { data, error } = await supabase
-    .from("profiles")
+    .from("public_profiles")
     .select("id, username, display_name, avatar_url")
     .neq("id", currentUserId)
     .order("display_name", { ascending: true });
