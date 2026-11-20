@@ -159,7 +159,7 @@ function AppContent() {
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
-  const [tab, setTab] = useState<"Conversas" | "Estados" | "Favoritos" | "Contactos" | "Definições">("Conversas");
+  const [tab, setTab] = useState<"Conversas" | "Estados" | "Contactos" | "Definições">("Conversas");
   const [statuses, setStatuses] = useState<StatusUpdate[]>([]);
   const [statusBusy, setStatusBusy] = useState(false);
   const [statusNotice, setStatusNotice] = useState("");
@@ -213,7 +213,6 @@ function AppContent() {
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
   const [conversationPins, setConversationPins] = useState<MessagePin[]>([]);
   const [favoriteMessageIds, setFavoriteMessageIds] = useState<string[]>([]);
-  const [favoriteRecords, setFavoriteRecords] = useState<FavoriteMessageRecord[]>([]);
   const [mediaPreviewUrls, setMediaPreviewUrls] = useState<Record<string, string>>({});
   const [viewingChatImage, setViewingChatImage] = useState<{ url: string; name: string } | null>(null);
   const [myHighlights, setMyHighlights] = useState<StatusHighlight[]>([]);
@@ -278,19 +277,16 @@ function AppContent() {
   useEffect(() => {
     if (!session?.user.id) {
       setFavoriteMessageIds([]);
-      setFavoriteRecords([]);
       setMyHighlights([]);
       return;
     }
     let cancelled = false;
     void Promise.all([
       listFavoriteMessageIds(session.user.id),
-      listFavoriteMessages(session.user.id),
       listMyStatusHighlights(session.user.id),
-    ]).then(([ids, records, highlights]) => {
+    ]).then(([ids, highlights]) => {
       if (cancelled) return;
       setFavoriteMessageIds(ids);
-      setFavoriteRecords(records);
       setMyHighlights(highlights);
     }).catch((error) => {
       if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os favoritos.");
@@ -323,11 +319,8 @@ function AppContent() {
       await setMessageFavorite(messageId, session.user.id, !favorite);
       const [ids, records] = await Promise.all([
         listFavoriteMessageIds(session.user.id),
-        listFavoriteMessages(session.user.id),
       ]);
       setFavoriteMessageIds(ids);
-      setFavoriteRecords(records);
-      if (records.length === 0) setTab("Conversas");
     } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível atualizar os favoritos."); }
   };
 
@@ -1233,21 +1226,6 @@ function AppContent() {
 
   const activeConversation = conversations.find((item) => item.id === activeConversationId);
 
-  const favoriteMessages = useMemo(() => favoriteRecords.map((record) => {
-    const conversation = conversations.find((item) => item.id === record.conversation_id);
-    return {
-      id: record.id,
-      text: record.body,
-      time: new Date(record.created_at).toLocaleString(),
-      mine: record.sender_id === session?.user.id,
-      mediaPath: record.media_path || undefined,
-      mediaName: record.media_name || undefined,
-      mediaKind: record.message_type === "text" ? undefined : record.message_type,
-      conversationId: record.conversation_id,
-      conversationName: conversation?.name || "Conversa",
-    };
-  }), [favoriteRecords, conversations, session?.user.id]);
-
   useEffect(() => {
     const imageMessages = (activeConversation?.messages ?? []).filter((message) => message.mediaPath && (message.mediaKind === "image" || message.mediaKind === "video"));
     let cancelled = false;
@@ -1760,50 +1738,6 @@ function AppContent() {
             </ScrollView>
           )}
 
-          {tab === "Favoritos" && (
-            <View style={styles.content}>
-              <Text style={styles.heading}>Mensagens favoritas</Text>
-              <FlatList data={favoriteMessages} keyExtractor={(item) => item.id} contentContainerStyle={styles.list}
-                ListEmptyComponent={<Text style={styles.empty}>Ainda não guardaste mensagens favoritas.</Text>}
-                renderItem={({ item }) => <View style={[styles.settingCard, { marginBottom: 10 }]}>
-                  <Pressable onPress={() => { setActiveConversationId(item.conversationId); setTab("Conversas"); }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={styles.chatName}>{item.conversationName}</Text>
-                      <Text style={{ color: "#D6A52D", fontSize: 18 }}>★</Text>
-                    </View>
-                    {item.mediaKind === "image" ? (
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 8 }}>
-                        <Text style={{ fontSize: 26 }}>🖼️</Text><Text style={styles.message}>Fotografia · {item.mediaName || "Imagem"}</Text>
-                      </View>
-                    ) : item.mediaKind === "video" ? (
-                      <Text style={styles.message}>▶ Vídeo · {item.mediaName || "Vídeo"}</Text>
-                    ) : item.mediaKind === "audio" ? (
-                      <Text style={styles.message}>🎵 Mensagem de voz · {item.mediaName || "Áudio"}</Text>
-                    ) : item.mediaKind === "file" ? (
-                      <Text style={styles.message}>📎 Documento · {item.mediaName || item.text}</Text>
-                    ) : <Text style={styles.message}>{item.text}</Text>}
-                    <Text style={styles.languageNote}>{item.time} · Toca para abrir a conversa</Text>
-                  </Pressable>
-                  {!!item.mediaPath && (
-                    <Pressable
-                      onPress={() => void openMedia({
-                        id: item.id, text: item.text, time: item.time, mine: item.mine,
-                        mediaPath: item.mediaPath, mediaName: item.mediaName, mediaKind: item.mediaKind,
-                      })}
-                      style={{ marginTop: 8, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "#EAF3EE", alignSelf: "flex-start" }}
-                    >
-                      <Text style={{ color: "#0B6B4B", fontWeight: "800", fontSize: 12 }}>
-                        {item.mediaKind === "image" ? "Ver fotografia" : item.mediaKind === "video" ? "▶ Reproduzir vídeo" : item.mediaKind === "audio" ? "▶ Ouvir áudio" : "Abrir documento"}
-                      </Text>
-                    </Pressable>
-                  )}
-                  <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 8 }}>
-                    <Pressable onPress={() => void toggleMessageFavorite(item.id)}><Text style={{ color: "#B42318", fontWeight: "700", fontSize: 12 }}>Remover dos favoritos</Text></Pressable>
-                  </View>
-                </View>} />
-            </View>
-          )}
-
           {tab === "Contactos" && (
             <View style={styles.content}>
               <View style={styles.groupHeader}>
@@ -2002,8 +1936,7 @@ function AppContent() {
           )}
 
           <View style={styles.bottomNav}>
-            {(["Conversas", "Estados", "Favoritos", "Contactos", "Definições"] as const)
-              .filter((item) => item !== "Favoritos" || favoriteMessages.length > 0)
+            {(["Conversas", "Estados", "Contactos", "Definições"] as const)
               .map((item) => (
               <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
                 <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
