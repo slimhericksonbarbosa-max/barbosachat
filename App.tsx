@@ -38,6 +38,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Linking,
+  Share,
   Modal,
   Image,
 } from "react-native";
@@ -1956,39 +1957,61 @@ function AppContent() {
         </>
       )}
       <Modal visible={!!selectedContactProfile} animationType="slide" transparent onRequestClose={() => setSelectedContactProfile(null)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.42)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 18, paddingBottom: 34, alignItems: "center" }}>
-            <View style={{ width: 42, height: 4, borderRadius: 3, backgroundColor: "#D7E2DC", marginBottom: 20 }} />
-            <Pressable onPress={() => setSelectedContactProfile(null)} style={{ position: "absolute", right: 20, top: 14, padding: 8 }}>
-              <Text style={{ color: "#66756D", fontSize: 28 }}>×</Text>
-            </Pressable>
-            <View style={{ width: 116, height: 116, borderRadius: 58, backgroundColor: "#D9F3E8", alignItems: "center", justifyContent: "center", overflow: "hidden", marginTop: 8, marginBottom: 14 }}>
-              {selectedContactProfile?.avatar_url
-                ? <Image source={{ uri: selectedContactProfile.avatar_url }} style={{ width: 116, height: 116, borderRadius: 58 }} />
-                : <Text style={{ color: "#0B6B4B", fontSize: 44, fontWeight: "800" }}>{selectedContactProfile?.display_name?.charAt(0).toUpperCase() || "?"}</Text>}
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.48)", justifyContent: "flex-end" }}>
+          <View style={{ backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28, maxHeight: "92%" }}>
+            <View style={{ width: 42, height: 4, borderRadius: 3, backgroundColor: "#D7E2DC", alignSelf: "center", marginBottom: 18 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Pressable onPress={() => setSelectedContactProfile(null)} style={{ padding: 5 }}>
+                <Text style={{ color: "#66756D", fontSize: 28 }}>‹</Text>
+              </Pressable>
+              <Text style={{ color: "#18251F", fontSize: 17, fontWeight: "800" }}>Perfil do contacto</Text>
+              <Pressable onPress={() => setSelectedContactProfile(null)} style={{ padding: 5 }}>
+                <Text style={{ color: "#66756D", fontSize: 24 }}>×</Text>
+              </Pressable>
             </View>
-            <Text style={{ color: "#18251F", fontSize: 23, fontWeight: "800", textAlign: "center" }}>{selectedContactProfile?.display_name}</Text>
-            {!!selectedContactProfile?.username && <Text style={{ color: "#718078", fontSize: 15, marginTop: 5 }}>@{selectedContactProfile.username}</Text>}
-            <View style={{ alignSelf: "stretch", backgroundColor: "#F3F8F5", borderRadius: 14, padding: 15, marginTop: 22, marginBottom: 18 }}>
-              <Text style={{ color: "#0B6B4B", fontSize: 12, fontWeight: "800", marginBottom: 6 }}>INFORMAÇÕES DO CONTACTO</Text>
-              <Text style={{ color: "#26372E", fontSize: 14 }}>Nome de perfil</Text>
-              <Text style={{ color: "#718078", fontSize: 13, marginTop: 3 }}>{selectedContactProfile?.display_name}</Text>
-              {!!selectedContactProfile?.username && <>
-                <View style={{ height: 1, backgroundColor: "#E1EBE5", marginVertical: 12 }} />
-                <Text style={{ color: "#26372E", fontSize: 14 }}>Nome de utilizador</Text>
-                <Text style={{ color: "#718078", fontSize: 13, marginTop: 3 }}>@{selectedContactProfile.username}</Text>
-              </>}
-            </View>
-            <Pressable
-              onPress={() => {
-                const contact = selectedContactProfile;
-                setSelectedContactProfile(null);
-                if (contact) void startConversation(contact.id, contact.display_name);
-              }}
-              style={{ alignSelf: "stretch", backgroundColor: "#0B6B4B", borderRadius: 14, paddingVertical: 15, alignItems: "center" }}
-            >
-              <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "800" }}>Enviar mensagem</Text>
-            </Pressable>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ alignItems: "center", paddingBottom: 8 }}>
+              <View style={{ width: 150, height: 150, borderRadius: 75, backgroundColor: "#D9F3E8", alignItems: "center", justifyContent: "center", overflow: "hidden", marginTop: 8, marginBottom: 16 }}>
+                {selectedContactProfile?.avatar_url
+                  ? <Image source={{ uri: selectedContactProfile.avatar_url }} style={{ width: 150, height: 150, borderRadius: 75 }} />
+                  : <Text style={{ color: "#0B6B4B", fontSize: 54, fontWeight: "800" }}>{selectedContactProfile?.display_name?.charAt(0).toUpperCase() || "?"}</Text>}
+              </View>
+              <Text style={{ color: "#18251F", fontSize: 28, fontWeight: "800", textAlign: "center" }}>{selectedContactProfile?.display_name}</Text>
+              {!!selectedContactProfile?.username && <Text style={{ color: "#718078", fontSize: 16, marginTop: 6 }}>@{selectedContactProfile.username}</Text>}
+              <View style={{ alignSelf: "stretch", flexDirection: "row", gap: 10, marginTop: 24, marginBottom: 20 }}>
+                <Pressable onPress={() => { const contact = selectedContactProfile; setSelectedContactProfile(null); if (contact) void startConversation(contact.id, contact.display_name); }} style={{ flex: 1, backgroundColor: "#F0F5F2", borderRadius: 16, paddingVertical: 14, alignItems: "center" }}>
+                  <Text style={{ color: "#0B6B4B", fontSize: 22 }}>✉</Text>
+                  <Text style={{ color: "#0B6B4B", fontSize: 14, fontWeight: "700", marginTop: 5 }}>Mensagem</Text>
+                </Pressable>
+                <Pressable onPress={() => { const contact = selectedContactProfile; if (contact) void Share.share({ message: "Perfil de " + contact.display_name + (contact.username ? " (@"+contact.username+")" : "") + " no Barbosachat." }); }} style={{ flex: 1, backgroundColor: "#F0F5F2", borderRadius: 16, paddingVertical: 14, alignItems: "center" }}>
+                  <Text style={{ color: "#0B6B4B", fontSize: 22 }}>↗</Text>
+                  <Text style={{ color: "#0B6B4B", fontSize: 14, fontWeight: "700", marginTop: 5 }}>Partilhar</Text>
+                </Pressable>
+                <View style={{ flex: 1, backgroundColor: "#F0F5F2", borderRadius: 16, paddingVertical: 14, alignItems: "center", opacity: 0.55 }}>
+                  <Text style={{ color: "#718078", fontSize: 22 }}>☎</Text>
+                  <Text style={{ color: "#718078", fontSize: 14, fontWeight: "700", marginTop: 5 }}>Voz</Text>
+                </View>
+              </View>
+              <View style={{ alignSelf: "stretch", backgroundColor: "#F3F8F5", borderRadius: 18, padding: 17, marginBottom: 14 }}>
+                <Text style={{ color: "#0B6B4B", fontSize: 12, fontWeight: "800", marginBottom: 14 }}>INFORMAÇÕES DO CONTACTO</Text>
+                <Text style={{ color: "#26372E", fontSize: 15, fontWeight: "600" }}>Nome</Text>
+                <Text style={{ color: "#718078", fontSize: 14, marginTop: 4 }}>{selectedContactProfile?.display_name}</Text>
+                {!!selectedContactProfile?.username && <>
+                  <View style={{ height: 1, backgroundColor: "#E1EBE5", marginVertical: 13 }} />
+                  <Text style={{ color: "#26372E", fontSize: 15, fontWeight: "600" }}>Nome de utilizador</Text>
+                  <Text style={{ color: "#718078", fontSize: 14, marginTop: 4 }}>@{selectedContactProfile.username}</Text>
+                </>}
+                <View style={{ height: 1, backgroundColor: "#E1EBE5", marginVertical: 13 }} />
+                <Text style={{ color: "#26372E", fontSize: 15, fontWeight: "600" }}>Sobre</Text>
+                <Text style={{ color: "#718078", fontSize: 14, marginTop: 4 }}>Este contacto utiliza o Barbosachat.</Text>
+              </View>
+              <View style={{ alignSelf: "stretch", backgroundColor: "#F3F8F5", borderRadius: 18, padding: 17, marginBottom: 16 }}>
+                <Text style={{ color: "#26372E", fontSize: 15, fontWeight: "700" }}>Conta Barbosachat</Text>
+                <Text style={{ color: "#718078", fontSize: 13, lineHeight: 19, marginTop: 5 }}>Perfil de utilizador da plataforma.</Text>
+              </View>
+              <Pressable onPress={() => { const contact = selectedContactProfile; setSelectedContactProfile(null); if (contact) void startConversation(contact.id, contact.display_name); }} style={{ alignSelf: "stretch", backgroundColor: "#0B6B4B", borderRadius: 16, paddingVertical: 16, alignItems: "center" }}>
+                <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "800" }}>Enviar mensagem</Text>
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
       </Modal>
