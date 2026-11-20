@@ -1623,8 +1623,8 @@ function AppContent() {
               <FlatList
                 data={filteredConversations}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.list}
-                style={{ flex: 1 }}
+                contentContainerStyle={[styles.list, { flexGrow: 1 }]}
+                style={{ flex: 1, minHeight: 0 }}
                 nestedScrollEnabled
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled"
@@ -1868,7 +1868,11 @@ function AppContent() {
                 <FlatList
                   data={contacts}
                   keyExtractor={(item) => item.id}
-                  contentContainerStyle={styles.list}
+                  contentContainerStyle={[styles.list, { flexGrow: 1 }]}
+                  style={{ flex: 1, minHeight: 0 }}
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator
+                  keyboardShouldPersistTaps="handled"
                   ListEmptyComponent={<Text style={styles.empty}>Ainda não existem outros utilizadores registados.</Text>}
                   renderItem={({ item }) => (
                     <Pressable
