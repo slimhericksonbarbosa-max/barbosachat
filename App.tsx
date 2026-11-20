@@ -32,6 +32,7 @@ import {
   TextInput,
   FlatList,
   Pressable,
+  PanResponder,
   StyleSheet,
   StatusBar,
   KeyboardAvoidingView,
@@ -489,6 +490,16 @@ function AppContent() {
     }
   };
 
+  // Allow WhatsApp-style horizontal swipes while viewing a status.
+  const statusSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) =>
+      !!viewingStatus && Math.abs(gesture.dx) > 24 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.25,
+    onPanResponderRelease: (_event, gesture) => {
+      if (gesture.dx <= -55) showNextStatus(1);
+      else if (gesture.dx >= 55) showNextStatus(-1);
+    },
+  }), [viewingStatus?.id, statusGroups]);
+
   useEffect(() => {
     if (!viewingStatus) {
       setStatusProgress(0);
@@ -597,8 +608,7 @@ function AppContent() {
         const params = new URLSearchParams(rawParams);
         const code = params.get("code");
         const accessToken = params.get("access_token");
-        const refreshToken = params.get("refresh_token");
-        const type = params.get("type");
+        const refreshToken = params.get("refresh_token");        const type = params.get("type");
 
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -1197,8 +1207,7 @@ function AppContent() {
   };
 
   const openMedia = async (item: ChatMessage) => {
-    if (!item.mediaPath) return;
-    try {
+    if (!item.mediaPath) return;    try {
       const url = await createChatMediaUrl(item.mediaPath);
       if (item.mediaKind === "audio") {
         audioPlayer.replace(url);
@@ -1797,8 +1806,7 @@ function AppContent() {
           {tab === "Contactos" && (
             <View style={styles.content}>
               <View style={styles.groupHeader}>
-                <Text style={styles.heading}>Contactos</Text>
-                {session && (
+                <Text style={styles.heading}>Contactos</Text>                {session && (
                   <Pressable
                     onPress={() => {
                       setGroupMode(!groupMode);
@@ -2038,7 +2046,7 @@ function AppContent() {
         </View>
       </Modal>
       <Modal visible={!!viewingStatus} animationType="fade" onRequestClose={() => setViewingStatus(null)}>
-        <View style={styles.statusViewer}>
+        <View style={styles.statusViewer} {...statusSwipeResponder.panHandlers}>
           <View style={{ flexDirection: "row", gap: 4, paddingHorizontal: 14, paddingTop: 12 }}>
             {(() => {
               const sequence = statusGroups.flatMap((group) => group.items);
