@@ -14,6 +14,7 @@ import { File } from "expo-file-system";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 import { createConversation, listContacts, listMyConversations, listMessages, listPendingConversationInvites, recordMessagesAsRead, respondToConversationInvite, sendMediaMessage, sendTextMessage, subscribeToMessages, subscribeToReadReceipts, type PendingConversationInvite } from "./src/lib/chat";
 import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/media";
+import { uploadProfilePhoto } from "./src/lib/profile";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
 import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, listFavoriteMessages, setMessageFavorite, type FavoriteMessageRecord, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
@@ -142,6 +143,9 @@ export default function App() {
 
 function AppContent() {
   const [session, setSession] = useState<Session | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
+  const [profilePhotoBusy, setProfilePhotoBusy] = useState(false);
+  const [profilePhotoNotice, setProfilePhotoNotice] = useState("");
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -201,7 +205,7 @@ function AppContent() {
   const videoPlayer = useVideoPlayer(null);
   const [viewingChatVideo, setViewingChatVideo] = useState<string | null>(null);
   const [chatError, setChatError] = useState("");
-  const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; display_name: string; username: string | null; avatar_url: string | null }[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PendingConversationInvite[]>([]);
   const [inviteBusyId, setInviteBusyId] = useState<string | null>(null);
   const [conversationPins, setConversationPins] = useState<MessagePin[]>([]);
@@ -216,6 +220,21 @@ function AppContent() {
   const [editingHighlightTitle, setEditingHighlightTitle] = useState("");
   const [viewingHighlightItem, setViewingHighlightItem] = useState<StatusHighlightItem | null>(null);
   const [viewingHighlightUrl, setViewingHighlightUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session?.user.id) {
+      setProfileAvatarUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void supabase.from("profiles").select("avatar_url").eq("id", session.user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) setProfilePhotoNotice("Não foi possível carregar a fotografia do perfil.");
+        else setProfileAvatarUrl(data?.avatar_url ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [session?.user.id]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -710,6 +729,7 @@ function AppContent() {
           id: profile.id,
           display_name: profile.display_name || profile.username || "Utilizador Barbosachat",
           username: profile.username,
+          avatar_url: profile.avatar_url,
         })));
       } catch (error) {
         if (!cancelled) setChatError(error instanceof Error ? error.message : "Não foi possível carregar os contactos.");
@@ -928,6 +948,50 @@ function AppContent() {
       }
     }
     await supabase.auth.signOut();
+  };
+
+  const pickProfilePhoto = async () => {
+    if (!session?.user.id || profilePhotoBusy) return;
+    setProfilePhotoBusy(true);
+    setProfilePhotoNotice("");
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) throw new Error("Autoriza o acesso às fotografias para escolheres uma imagem de perfil.");
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const contentType = asset.mimeType || "image/jpeg";
+      let fileData: ArrayBuffer | Uint8Array;
+      if (Platform.OS === "web") {
+        const response = await fetch(asset.uri);
+        if (!response.ok) throw new Error("Não foi possível ler a fotografia selecionada.");
+        const blob = await response.blob();
+        if (!blob.size || blob.size > 5 * 1024 * 1024) throw new Error("A fotografia deve ter até 5 MB.");
+        fileData = await blob.arrayBuffer();
+      } else {
+        const pickedFile = new File(asset.uri);
+        if (!pickedFile.exists || !pickedFile.size) throw new Error("Não foi possível ler a fotografia selecionada.");
+        if (pickedFile.size > 5 * 1024 * 1024) throw new Error("A fotografia deve ter até 5 MB.");
+        fileData = await pickedFile.bytes();
+      }
+      const publicUrl = await uploadProfilePhoto({
+        userId: session.user.id,
+        fileData,
+        contentType,
+        fileName: asset.fileName || "fotografia-perfil.jpg",
+      });
+      setProfileAvatarUrl(publicUrl);
+      setProfilePhotoNotice("Fotografia de perfil atualizada.");
+    } catch (error) {
+      setProfilePhotoNotice(error instanceof Error ? error.message : "Não foi possível atualizar a fotografia.");
+    } finally {
+      setProfilePhotoBusy(false);
+    }
   };
 
   const saveReadReceiptsPreference = async (enabled: boolean) => {
@@ -1528,7 +1592,9 @@ function AppContent() {
               <Text style={styles.brand}>Barbosachat</Text>
               <Text style={styles.subtitle}>Perto de quem importa.</Text>
             </View>
-            <View style={styles.avatar}><Text style={styles.avatarText}>B</Text></View>
+            <View style={styles.avatar}>
+              {profileAvatarUrl ? <Image source={{ uri: profileAvatarUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} /> : <Text style={styles.avatarText}>B</Text>}
+            </View>
           </View>
 
           {tab === "Conversas" && (
@@ -1796,8 +1862,8 @@ function AppContent() {
                           : [...current, item.id])
                         : void startConversation(item.id, item.display_name)}
                     >
-                      <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8" }]}>
-                        <Text style={styles.chatAvatarText}>{item.display_name.charAt(0).toUpperCase()}</Text>
+                      <View style={[styles.chatAvatar, { backgroundColor: "#D9F3E8", overflow: "hidden" }]}>
+                        {item.avatar_url ? <Image source={{ uri: item.avatar_url }} style={{ width: 48, height: 48, borderRadius: 24 }} /> : <Text style={styles.chatAvatarText}>{item.display_name.charAt(0).toUpperCase()}</Text>}
                       </View>
                       <View style={styles.chatCopy}>
                         <Text style={styles.chatName}>{item.display_name}</Text>
@@ -1818,6 +1884,22 @@ function AppContent() {
           {tab === "Definições" && (
             <View style={styles.content}>
               <Text style={styles.heading}>Definições</Text>
+              {session && (
+                <View style={[styles.settingCard, { alignItems: "center", marginBottom: 12 }]}>
+                  <Text style={[styles.settingTitle, { alignSelf: "flex-start" }]}>Fotografia de perfil</Text>
+                  <Text style={[styles.settingDescription, { alignSelf: "flex-start" }]}>Escolhe uma fotografia para os teus contactos te reconhecerem no Barbosachat.</Text>
+                  <View style={{ width: 112, height: 112, borderRadius: 56, backgroundColor: "#D9F3E8", alignItems: "center", justifyContent: "center", overflow: "hidden", marginTop: 16, marginBottom: 12 }}>
+                    {profileAvatarUrl
+                      ? <Image source={{ uri: profileAvatarUrl }} style={{ width: 112, height: 112, borderRadius: 56 }} />
+                      : <Text style={{ color: "#0B6B4B", fontSize: 42, fontWeight: "800" }}>{session.user.email?.charAt(0).toUpperCase() || "B"}</Text>}
+                  </View>
+                  <Pressable onPress={() => void pickProfilePhoto()} disabled={profilePhotoBusy} style={[styles.authButton, { paddingHorizontal: 22, alignSelf: "stretch" }, profilePhotoBusy && styles.authButtonDisabled]}>
+                    <Text style={styles.authButtonText}>{profilePhotoBusy ? "A carregar fotografia..." : profileAvatarUrl ? "Alterar fotografia" : "Adicionar fotografia"}</Text>
+                  </Pressable>
+                  {!!profilePhotoNotice && <Text style={styles.languageNote}>{profilePhotoNotice}</Text>}
+                  <Text style={styles.languageNote}>JPG, PNG, WebP ou HEIC · máximo 5 MB.</Text>
+                </View>
+              )}
               <View style={styles.settingCard}>
                 <Text style={styles.settingTitle}>Tradução automática</Text>
                 <Text style={styles.settingDescription}>No modo manual, toca em “Traduzir” em cada mensagem recebida. No modo automático, as mensagens de texto são traduzidas sem precisares de tocar. A mensagem original continua guardada; a tradução usa um serviço externo.</Text>
