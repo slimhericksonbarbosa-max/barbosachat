@@ -17,7 +17,7 @@ import { createChatMediaUrl, deleteChatMedia, uploadChatMedia } from "./src/lib/
 import { uploadProfilePhoto } from "./src/lib/profile";
 import { createStatusMediaUrl, listActiveStatuses, listStatusViewers, publishStatus, publishTextStatus, recordStatusView, type StatusUpdate, type StatusViewer } from "./src/lib/status";
 import { translateConversationMessage } from "./src/lib/translation";
-import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, listFavoriteMessages, setMessageFavorite, type FavoriteMessageRecord, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
+import { listConversationPins, pinMessage, unpinMessage, listFavoriteMessageIds, setMessageFavorite, listMyStatusHighlights, createStatusHighlight, addStatusToHighlight, removeStatusFromHighlight, renameStatusHighlight, setStatusHighlightCover, deleteStatusHighlight, type MessagePin, type StatusHighlight, type StatusHighlightItem } from "./src/lib/interactions";
 import * as Notifications from "expo-notifications";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
@@ -317,9 +317,7 @@ function AppContent() {
     const favorite = favoriteMessageIds.includes(messageId);
     try {
       await setMessageFavorite(messageId, session.user.id, !favorite);
-      const [ids, records] = await Promise.all([
-        listFavoriteMessageIds(session.user.id),
-      ]);
+      const ids = await listFavoriteMessageIds(session.user.id);
       setFavoriteMessageIds(ids);
     } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível atualizar os favoritos."); }
   };
