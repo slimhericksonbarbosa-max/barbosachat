@@ -1615,6 +1615,10 @@ function AppContent() {
                 data={filteredConversations}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
+                style={{ flex: 1 }}
+                nestedScrollEnabled
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={<Text style={styles.empty}>Não encontrámos conversas.</Text>}
                 renderItem={({ item }) => (
                   <Pressable style={styles.chatRow} onPress={() => openConversation(item.id)}>
@@ -1638,7 +1642,13 @@ function AppContent() {
           )}
 
           {tab === "Estados" && (
-            <View style={styles.content}>
+            <ScrollView
+              style={styles.content}
+              contentContainerStyle={{ paddingBottom: 32 }}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.groupHeader}>
                 <Text style={styles.heading}>Estados</Text>
                 <Pressable onPress={() => { setShowTextStatus(false); void publishNewStatus(); }} disabled={!session || statusBusy} style={[styles.mediaButton, statusBusy && styles.authButtonDisabled]}>
@@ -1737,7 +1747,7 @@ function AppContent() {
               ) : (
                 <Text style={styles.languageNote}>Toca num círculo para ver os estados desse contacto.</Text>
               )}
-            </View>
+            </ScrollView>
           )}
 
           {tab === "Favoritos" && (
