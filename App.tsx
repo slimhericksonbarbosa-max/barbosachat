@@ -1463,13 +1463,25 @@ function AppContent() {
             <Pressable onPress={() => setActiveConversationId(null)} style={styles.backButton}>
               <Text style={styles.backText}>‹</Text>
             </Pressable>
-            <View style={[styles.chatAvatar, { backgroundColor: activeConversation.color }]}>
-              <Text style={styles.chatAvatarText}>{activeConversation.name.charAt(0)}</Text>
-            </View>
-            <View style={styles.chatHeaderCopy}>
-              <Text numberOfLines={1} style={styles.chatHeaderName}>{activeConversation.name}</Text>
-              <Text style={styles.onlineText}>{session ? "Mensagens em tempo real" : "Conversa demonstrativa"}</Text>
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Abrir perfil do contacto"
+              onPress={() => {
+                const matches = contacts.filter((contact) => contact.display_name === activeConversation.name);
+                if (matches.length === 1) setSelectedContactProfile(matches[0]);
+              }}
+              style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+            >
+              <View style={[styles.chatAvatar, { backgroundColor: activeConversation.color, overflow: "hidden" }]}>
+                {contacts.find((contact) => contact.display_name === activeConversation.name)?.avatar_url
+                  ? <Image source={{ uri: contacts.find((contact) => contact.display_name === activeConversation.name)!.avatar_url! }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                  : <Text style={styles.chatAvatarText}>{activeConversation.name.charAt(0)}</Text>}
+              </View>
+              <View style={styles.chatHeaderCopy}>
+                <Text numberOfLines={1} style={styles.chatHeaderName}>{activeConversation.name}</Text>
+                <Text style={styles.onlineText}>{session ? "Toca para ver o perfil" : "Conversa demonstrativa"}</Text>
+              </View>
+            </Pressable>
           </View>
 
           {!!chatError && <Text style={styles.authError}>{chatError}</Text>}
