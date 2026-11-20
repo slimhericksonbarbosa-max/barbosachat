@@ -26,6 +26,7 @@ import {
 } from "./src/lib/notifications";
 import {
   SafeAreaView,
+  ScrollView,
   View,
   Text,
   TextInput,
@@ -324,6 +325,7 @@ function AppContent() {
       ]);
       setFavoriteMessageIds(ids);
       setFavoriteRecords(records);
+      if (records.length === 0) setTab("Conversas");
     } catch (error) { setChatError(error instanceof Error ? error.message : "Não foi possível atualizar os favoritos."); }
   };
 
@@ -1882,7 +1884,7 @@ function AppContent() {
           )}
 
           {tab === "Definições" && (
-            <View style={styles.content}>
+            <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator>
               <Text style={styles.heading}>Definições</Text>
               {session && (
                 <View style={[styles.settingCard, { alignItems: "center", marginBottom: 12 }]}>
@@ -1973,11 +1975,13 @@ function AppContent() {
                   </Pressable>
                 </View>
               )}
-            </View>
+            </ScrollView>
           )}
 
           <View style={styles.bottomNav}>
-            {(["Conversas", "Estados", "Favoritos", "Contactos", "Definições"] as const).map((item) => (
+            {(["Conversas", "Estados", "Favoritos", "Contactos", "Definições"] as const)
+              .filter((item) => item !== "Favoritos" || favoriteMessages.length > 0)
+              .map((item) => (
               <Pressable key={item} onPress={() => setTab(item)} style={styles.navItem}>
                 <Text style={[styles.navText, tab === item && styles.navTextActive]}>{item}</Text>
               </Pressable>
