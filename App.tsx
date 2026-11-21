@@ -73,6 +73,7 @@ type Conversation = {
   unread?: number;
   color: string;
   messages: ChatMessage[];
+  contactId?: string;
 };
 
 const LANGUAGE_OPTIONS = [
@@ -707,6 +708,7 @@ function AppContent() {
           const last = row.last_message;
           return {
             id: row.id,
+            contactId: !row.is_group ? row.other_member?.id ?? undefined : undefined,
             name: row.title || (row.is_group ? "Grupo" : row.other_member?.display_name || (row.other_member?.username ? "@"+row.other_member.username : "Nova conversa")),
             message: last?.body || "Ainda sem mensagens",
             time: last ? new Date(last.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
@@ -1353,6 +1355,7 @@ function AppContent() {
         const rows = await listMyConversations(session.user.id);
         setConversations(rows.map((row) => ({
           id: row.id,
+          contactId: !row.is_group ? row.other_member?.id ?? undefined : undefined,
           name: row.title || (row.is_group ? "Grupo" : row.other_member?.display_name || (row.other_member?.username ? "@" + row.other_member.username : "Nova conversa")),
           message: row.last_message?.body || "Ainda sem mensagens",
           time: row.last_message ? new Date(row.last_message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "",
@@ -1468,14 +1471,14 @@ function AppContent() {
               accessibilityRole="button"
               accessibilityLabel="Abrir perfil do contacto"
               onPress={() => {
-                const matches = contacts.filter((contact) => contact.display_name === activeConversation.name);
-                if (matches.length === 1) setSelectedContactProfile(matches[0]);
+                const contact = contacts.find((item) => item.id === activeConversation.contactId);
+                if (contact) setSelectedContactProfile(contact);
               }}
               style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
             >
               <View style={[styles.chatAvatar, { backgroundColor: activeConversation.color, overflow: "hidden" }]}>
-                {contacts.find((contact) => contact.display_name === activeConversation.name)?.avatar_url
-                  ? <Image source={{ uri: contacts.find((contact) => contact.display_name === activeConversation.name)!.avatar_url! }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                {contacts.find((contact) => contact.id === activeConversation.contactId)?.avatar_url
+                  ? <Image source={{ uri: contacts.find((contact) => contact.id === activeConversation.contactId)!.avatar_url! }} style={{ width: 48, height: 48, borderRadius: 24 }} />
                   : <Text style={styles.chatAvatarText}>{activeConversation.name.charAt(0)}</Text>}
               </View>
               <View style={styles.chatHeaderCopy}>
