@@ -1679,7 +1679,7 @@ function AppContent() {
                     else setStatusNotice("Publica o teu primeiro estado usando o campo abaixo.");
                   }}>
                     <View style={styles.myStatusAvatarWrap}>
-                      <View style={styles.myStatusAvatar}><Text style={styles.myStatusLetter}>{session.user.email?.charAt(0).toUpperCase() || "B"}</Text></View>
+                      <View style={styles.myStatusAvatar}>{profileAvatarUrl ? <Image source={{ uri: profileAvatarUrl }} style={{ width: 54, height: 54, borderRadius: 27 }} /> : <Text style={styles.myStatusLetter}>{(displayName.trim() || session.user.email || "B").charAt(0).toUpperCase()}</Text>}</View>
                       <View style={styles.statusAdd}><Text style={styles.statusAddText}>+</Text></View>
                     </View>
                     <Text numberOfLines={1} style={styles.statusPersonName}>O meu estado</Text>
