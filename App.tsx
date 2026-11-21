@@ -1684,12 +1684,21 @@ function AppContent() {
                     </View>
                     <Text numberOfLines={1} style={styles.statusPersonName}>O meu estado</Text>
                   </Pressable>
-                  {statusGroups.filter((group) => group.userId !== session.user.id).map((group) => (
-                    <Pressable key={group.userId} style={styles.statusPerson} onPress={() => void openStatus(group.items[0])}>
-                      <View style={styles.statusRing}><View style={styles.statusAvatar}><Text style={styles.statusAvatarLetter}>B</Text></View></View>
-                      <Text numberOfLines={1} style={styles.statusPersonName}>Contacto</Text>
-                    </Pressable>
-                  ))}
+                  {statusGroups.filter((group) => group.userId !== session.user.id).map((group) => {
+                    const contact = contacts.find((item) => item.id === group.userId);
+                    const displayName = contact?.display_name || (contact?.username ? "@" + contact.username : "Contacto");
+                    const avatar = contact?.avatar_url;
+                    return (
+                      <Pressable key={group.userId} style={styles.statusPerson} onPress={() => void openStatus(group.items[0])}>
+                        <View style={styles.statusRing}>
+                          <View style={styles.statusAvatar}>
+                            {avatar ? <Image source={{ uri: avatar }} style={{ width: 50, height: 50, borderRadius: 25 }} /> : <Text style={styles.statusAvatarLetter}>{displayName.charAt(0).toUpperCase()}</Text>}
+                          </View>
+                        </View>
+                        <Text numberOfLines={1} style={styles.statusPersonName}>{displayName}</Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
               )}
               {session && (
