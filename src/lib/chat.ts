@@ -23,7 +23,7 @@ export type ConversationSummary = {
   is_group: boolean;
   created_at: string;
   last_message: StoredMessage | null;
-  other_member: { display_name: string; username: string | null } | null;
+  other_member: { id: string; display_name: string; username: string | null } | null;
 };
 
 function throwIfError(error: { message: string } | null): void {
@@ -78,11 +78,12 @@ export async function listMyConversations(userId: string): Promise<ConversationS
   throwIfError(publicProfiles.error);
 
   const profileById = new Map((publicProfiles.data ?? []).map((profile) => [profile.id, profile]));
-  const otherMemberByConversation = new Map<string, { display_name: string; username: string | null }>();
+  const otherMemberByConversation = new Map<string, { id: string; display_name: string; username: string | null }>();
   for (const row of otherMembers.data ?? []) {
     const profile = profileById.get(row.user_id);
     if (profile && !otherMemberByConversation.has(row.conversation_id)) {
       otherMemberByConversation.set(row.conversation_id, {
+        id: profile.id,
         display_name: profile.display_name || "",
         username: profile.username,
       });
