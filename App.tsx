@@ -170,6 +170,7 @@ function AppContent() {
   const [viewingStatus, setViewingStatus] = useState<StatusUpdate | null>(null);
   const [viewingStatusUrl, setViewingStatusUrl] = useState<string | null>(null);
   const [statusProgress, setStatusProgress] = useState(0);
+  const [statusPaused, setStatusPaused] = useState(false);
   const [statusViewers, setStatusViewers] = useState<StatusViewer[]>([]);
   const [readReceiptsEnabled, setReadReceiptsEnabled] = useState(true);
   const [readReceiptsReady, setReadReceiptsReady] = useState(false);
@@ -422,6 +423,7 @@ function AppContent() {
 
   const openStatus = async (status: StatusUpdate) => {
     setStatusProgress(0);
+    setStatusPaused(false);
     setViewingStatus(status);
     setStatusViewers([]);
     try {
@@ -481,6 +483,7 @@ function AppContent() {
       setViewingStatus(null);
       setViewingStatusUrl(null);
       setStatusProgress(0);
+      setStatusPaused(false);
     }
   };
 
@@ -497,12 +500,15 @@ function AppContent() {
   useEffect(() => {
     if (!viewingStatus) {
       setStatusProgress(0);
+      setStatusPaused(false);
       return;
     }
+    if (statusPaused) return;
     const duration = viewingStatus.media_type === "video" ? 15000 : 7000;
+    const remaining = duration * (1 - statusProgress);
     const startedAt = Date.now();
     const timer = setInterval(() => {
-      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      const progress = Math.min(1, statusProgress + (Date.now() - startedAt) / remaining * (1 - statusProgress));
       setStatusProgress(progress);
       if (progress >= 1) {
         clearInterval(timer);
@@ -510,7 +516,7 @@ function AppContent() {
       }
     }, 80);
     return () => clearInterval(timer);
-  }, [viewingStatus?.id, statusGroups]);
+  }, [viewingStatus?.id, statusGroups, statusPaused]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -2071,7 +2077,10 @@ function AppContent() {
           </View>
           <View style={styles.statusViewerTop}>
             <Text style={styles.statusViewerText}>{viewingStatus?.user_id === session?.user.id ? "O meu estado" : "Estado de um contacto"}</Text>
-            <Pressable onPress={() => setViewingStatus(null)}><Text style={styles.statusViewerClose}>×</Text></Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Pressable onPress={() => setStatusPaused((paused) => !paused)}><Text style={[styles.statusViewerButton, { marginRight: 16 }]}>{statusPaused ? "▶ Continuar" : "Ⅱ Pausar"}</Text></Pressable>
+              <Pressable onPress={() => { setViewingStatus(null); setViewingStatusUrl(null); setStatusPaused(false); }}><Text style={styles.statusViewerClose}>×</Text></Pressable>
+            </View>
           </View>
           {viewingStatus?.media_type === "text" ? (
             <Text style={styles.statusViewerText}>{viewingStatus.caption}</Text>
@@ -2082,6 +2091,7 @@ function AppContent() {
           ) : (
             <Text style={styles.statusViewerText}>A carregar estado...</Text>
           )}
+          {!!viewingStatus?.caption && viewingStatus.media_type !== "text" && <Text numberOfLines={3} style={[styles.statusViewerText, { fontSize: 14, marginTop: 8 }]}>{viewingStatus.caption}</Text>}
           {viewingStatus?.user_id === session?.user.id && (
             <View style={{ position: "absolute", bottom: 92, left: 20, right: 20, maxHeight: 110 }}>
               <Text style={{ color: "#FFFFFF", fontSize: 12, fontWeight: "700", marginBottom: 5 }}>Visto por {statusViewers.length}</Text>
