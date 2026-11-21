@@ -498,13 +498,20 @@ function AppContent() {
   }), [viewingStatus?.id, statusGroups]);
 
   useEffect(() => {
+    if (viewingStatus?.media_type === "video" && viewingStatusUrl) {
+      void videoPlayer.replaceAsync({ uri: viewingStatusUrl }).then(() => { if (!statusPaused) videoPlayer.play(); }).catch((error) => console.warn("Status video playback failed:", error));
+    } else {
+      videoPlayer.pause();
+    }
     if (!viewingStatus) {
+      videoPlayer.pause();
       setStatusProgress(0);
       setStatusPaused(false);
       return;
     }
-    if (statusPaused) return;
-    const duration = viewingStatus.media_type === "video" ? 15000 : 7000;
+    if (statusPaused) { videoPlayer.pause(); return; }
+    if (viewingStatus.media_type === "video") videoPlayer.play();
+    const duration = viewingStatus.media_type === "video" ? 30000 : 7000;
     const remaining = duration * (1 - statusProgress);
     const startedAt = Date.now();
     const timer = setInterval(() => {
@@ -516,7 +523,7 @@ function AppContent() {
       }
     }, 80);
     return () => clearInterval(timer);
-  }, [viewingStatus?.id, statusGroups, statusPaused]);
+  }, [viewingStatus?.id, viewingStatusUrl, statusGroups, statusPaused]);
 
   useEffect(() => {
     if (!session?.user.id) {
@@ -2087,7 +2094,7 @@ function AppContent() {
           ) : viewingStatus?.media_type === "image" && viewingStatusUrl ? (
             <Image source={{ uri: viewingStatusUrl }} resizeMode="contain" style={{ width: "100%", height: "75%" }} />
           ) : viewingStatus?.media_type === "video" && viewingStatusUrl ? (
-            <Pressable onPress={() => void Linking.openURL(viewingStatusUrl)}><Text style={styles.statusViewerButton}>Reproduzir vídeo</Text></Pressable>
+            <VideoView player={videoPlayer} style={{ width: "100%", height: "72%" }} nativeControls contentFit="contain" allowsFullscreen />
           ) : (
             <Text style={styles.statusViewerText}>A carregar estado...</Text>
           )}
@@ -2100,9 +2107,13 @@ function AppContent() {
               </Text>
             </View>
           )}
+          <View style={{ position: "absolute", top: 70, bottom: 115, left: 0, right: 0, flexDirection: "row" }}>
+            <Pressable style={{ flex: 1 }} onPress={() => showNextStatus(-1)} />
+            <Pressable style={{ flex: 1 }} onPress={() => showNextStatus(1)} />
+          </View>
           <View style={{ position: "absolute", bottom: 42, left: 20, right: 20, flexDirection: "row", justifyContent: "space-between" }}>
-            <Pressable onPress={() => showNextStatus(-1)}><Text style={styles.statusViewerButton}>Anterior</Text></Pressable>
-            <Pressable onPress={() => showNextStatus(1)}><Text style={styles.statusViewerButton}>Seguinte</Text></Pressable>
+            <Pressable onPress={() => showNextStatus(-1)}><Text style={styles.statusViewerButton}>‹ Anterior</Text></Pressable>
+            <Pressable onPress={() => showNextStatus(1)}><Text style={styles.statusViewerButton}>Seguinte ›</Text></Pressable>
           </View>
         </View>
       </Modal>
